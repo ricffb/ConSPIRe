@@ -1,0 +1,7 @@
+HAPPY = happy
+HAPPY_OPTS = 
+
+all: cspm.hs
+
+%.hs: %.y
+	$(HAPPY) $(HAPPY_OPTS) $< -o $@
