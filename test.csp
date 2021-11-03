@@ -1,0 +1,3 @@
+channel send : Int
+
+P = send.1 -> SKIP
