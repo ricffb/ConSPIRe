@@ -48,6 +48,11 @@ import ParserUtil
       '!'             { TokenExcl }
       '$'             { TokenDollar }
       ','             { TokenComma }
+      '|-'            { TokenVDash }
+      assert          { TokenAssert }
+      typevar         { TokenTypeVar }
+      datatype        { TokenDataType }
+      Proc            { TokenProc }
 
 %nonassoc '=='
 %right '.'
@@ -59,10 +64,39 @@ import ParserUtil
 %left '\\'
 
 %%
+
+parse : parse Construct {$2 : $1}
+      | Construct       {[$1]}
+      | {- empty -}     {[]}
+
+
+Construct   : Typedecl    {$1}
+            | Assertion   {$1}
+            | P_Assign    {$1}
+
+Typedecl    : typevar var { TypeVar $1 }
+            | datatype name '=' TypeBody { NamedType $2 $4 }
+
+TypeBody    : T_Product {[$1]}
+            | TypeBody '|' T_Product {$3 : $1}
+
+T_Product   : T_Product_R {reverse $1}
+
+T_Product_R   : var       {[$1]}
+            | T_Product '.' var {$3 : $1}
+
+Assertion   : assert Set '|-' name ':' P_Type {Assert $2 $4 $6}
+
+P_Type      : Proc '(' name ')' { PType $3 }
+
+P_Assign    : name '=' Proc               {NamedProc $1 [] $3}
+            | name '(' Seq ')' '=' Proc   {NamedProc $1 (reverse $3) $6}
+
 Proc :: {Proc}
 Proc  : STOP                        { STOP }
       | SKIP                        { SKIP }
-      | name                        { ProcName $1 }
+      | name                        { CallProc $1 [] }
+      | name '(' Seq ')'            { CallProc $1 (reverse $3)}
       | Action '->' Proc            { Prefix $1 $3 }
       | Proc '[]' Proc              { ExtChoice $1 $3 }
       | Proc '|~|' Proc             { IntChoice $1 $3 }
