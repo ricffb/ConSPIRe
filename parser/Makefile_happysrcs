@@ -1,7 +1,10 @@
 HAPPY = stack exec -- happy
 HAPPY_OPTS = 
+ALEX = stack exec -- alex
 
 all: cspm.hs
 
-%.hs: %.y
+%.hs: %.y Lexer.x
+	$(ALEX) Lexer.x -o Lexer.hs
 	$(HAPPY) $(HAPPY_OPTS) $< -o $@
+
