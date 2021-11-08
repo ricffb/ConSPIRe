@@ -1,4 +1,4 @@
-HAPPY = happy
+HAPPY = stack exec -- happy
 HAPPY_OPTS = 
 
 all: cspm.hs
