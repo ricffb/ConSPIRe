@@ -21,10 +21,18 @@ m `thenP` k = \s l ->
 returnP :: a -> P a
 returnP a = \s l -> ParseOk a
 
+type Programm = [Construct]
+
+data Construct
+  = TypeVar String
+  | NamedType String TBody
+  | Assert (Set.Set String) String PType
+  | NamedProc String [String] Proc
+
 data Proc
   = STOP
   | SKIP
-  | ProcName String
+  | CallProc String [String]
   | Prefix Action Proc
   | ExtChoice Proc Proc
   | IntChoice Proc Proc
