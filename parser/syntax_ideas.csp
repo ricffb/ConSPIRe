@@ -1,5 +1,5 @@
-(\_ -> System.Process.system "make -f Makefile_happysrcs" >>= \rr -> case rr of { System.Exit.ExitSuccess -> return ":reload" ; _ -> return "" })
 
+:def myreload (\_ -> System.Process.system "make -f Makefile_happysrcs" >>= \rr -> case rr of { System.Exit.ExitSuccess -> return ":reload" ; _ -> return "" })
 
 f :: Int -> A
 
