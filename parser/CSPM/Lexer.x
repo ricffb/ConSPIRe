@@ -1,7 +1,7 @@
 {
 
 {-# OPTIONS -w  #-}
-module Lexer
+module CSPM.Lexer
   ( Token(..)
   , AlexPosn(..)
   , unLex
@@ -14,7 +14,7 @@ module Lexer
 
 import Prelude hiding (lex)
 import Control.Monad ( liftM )
-import ParserUtil
+import CSPM.Syntax
 
 }
 

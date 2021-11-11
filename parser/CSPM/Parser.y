@@ -1,11 +1,11 @@
 {
 {-# OPTIONS -w #-}
-module Parser.CSP (parse, parseFile) where
+module CSPM.Parser (parse, parseFile) where
 
 import qualified Data.Set as Set
 import Data.Char
-import ParserUtil
-import Lexer
+import CSPM.Syntax
+import CSPM.Lexer
 }
 
 

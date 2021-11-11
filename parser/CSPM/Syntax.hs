@@ -1,4 +1,4 @@
-module ParserUtil where
+module CSPM.Syntax where
 
 import Data.Char
 import qualified Data.Set as Set
