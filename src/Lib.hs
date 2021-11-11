@@ -1,8 +1,9 @@
 module Lib where
 
+import CSPM.Parser
+import CSPM.Syntax (Construct (..), Proc (..), Programm)
 import Control.Monad.Except
 import Control.Monad.Reader
-import ParserUtil (Construct (..), Proc (..), Programm)
 import Text.Show (Show)
 
 someFunc :: IO ()
@@ -46,8 +47,12 @@ check :: Proc -> Type -> Check Type
 check p t = case p of
   STOP -> return $ TProc t
   SKIP -> return $ TProc t
-  CallProc s ss -> undefined
-  Prefix x0 pr -> undefined
+  CallProc process args -> do
+    env <- ask
+    case lookup process env of
+      Just t -> return t
+      Nothing -> throwError $ NotInScope process
+  Prefix action pr -> undefined
   ExtChoice pleft pright -> do
     lhs <- check pleft t
     rhs <- check pright t
