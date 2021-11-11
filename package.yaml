@@ -1,15 +1,16 @@
 name: cspire
 version: 0.1.0.0
-github: "githubuser/cspire"
+github: "ricffb/cspire"
 license: BSD3
-author: "Author name here"
-maintainer: "example@example.com"
-copyright: "2021 Author name here"
+author: "Henrik Wachowitz"
+maintainer: "henrik.wachowitz@tum.de"
+copyright: "2021 Henrik Wachowitz"
 
 extra-source-files:
   - README.md
   - ChangeLog.md
-  - parser/cspm.y
+  - parser/CSPM/Parser.y
+  - parser/CSPM/Lexer.x
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -25,6 +26,7 @@ dependencies:
   - CSPM-Frontend == 0.12.1.1
   - containers >= 0.6
   - mtl
+  - array >= 0.5.4
 
 build-tools:
   - alex

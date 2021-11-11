@@ -7,27 +7,30 @@ cabal-version: 1.12
 name:           cspire
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/cspire#readme>
-homepage:       https://github.com/githubuser/cspire#readme
-bug-reports:    https://github.com/githubuser/cspire/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2021 Author name here
+homepage:       https://github.com/ricffb/cspire#readme
+bug-reports:    https://github.com/ricffb/cspire/issues
+author:         Henrik Wachowitz
+maintainer:     henrik.wachowitz@tum.de
+copyright:      2021 Henrik Wachowitz
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
     ChangeLog.md
-    parser/cspm.y
+    parser/CSPM/Parser.y
+    parser/CSPM/Lexer.x
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/cspire
+  location: https://github.com/ricffb/cspire
 
 library
   exposed-modules:
       Lib
-      ParserUtil
+      CSPM.Lexer
+      CSPM.Parser
+      CSPM.Syntax
   other-modules:
       Paths_cspire
   hs-source-dirs:
@@ -38,6 +41,7 @@ library
     , happy
   build-depends:
       CSPM-Frontend ==0.12.1.1
+    , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
     , mtl
@@ -55,6 +59,7 @@ executable cspire-exe
     , happy
   build-depends:
       CSPM-Frontend ==0.12.1.1
+    , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
     , cspire
@@ -74,6 +79,7 @@ test-suite cspire-test
     , happy
   build-depends:
       CSPM-Frontend ==0.12.1.1
+    , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
     , cspire
