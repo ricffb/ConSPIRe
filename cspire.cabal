@@ -44,6 +44,7 @@ library
     , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
+    , extra ==1.7.10
     , mtl
     , transformers ==0.5.6.2
     , unordered-containers ==0.2.15.0
@@ -65,6 +66,7 @@ executable cspire-exe
     , base >=4.7 && <5
     , containers >=0.6
     , cspire
+    , extra ==1.7.10
     , mtl
     , transformers ==0.5.6.2
     , unordered-containers ==0.2.15.0
@@ -87,6 +89,7 @@ test-suite cspire-test
     , base >=4.7 && <5
     , containers >=0.6
     , cspire
+    , extra ==1.7.10
     , mtl
     , transformers ==0.5.6.2
     , unordered-containers ==0.2.15.0
