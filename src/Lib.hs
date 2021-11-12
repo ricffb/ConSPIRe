@@ -1,7 +1,9 @@
+{-# LANGUAGE TupleSections #-}
+
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Construct (..), Exp (Brack, Dot, Eq, Var), Proc (..), Programm)
+import CSPM.Syntax (Action (..), ActionI (..), Construct (..), Exp (Brack, Dot, Eq, Var), Proc (..), Programm)
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -13,7 +15,10 @@ import Control.Monad.Reader
     runReader,
   )
 import Control.Monad.State (State)
+import Data.Bifoldable
 import qualified Data.HashMap.Lazy as Map
+import Data.Tuple.Extra (both)
+import Debug.Trace (trace)
 import Text.Show (Show)
 
 someFunc :: IO ()
@@ -37,6 +42,7 @@ data TypeError
   | NotFunction Type
   | NotInScope String
   | NotExpression String
+  | NotChannel String Type
   deriving (Show)
 
 pEmpty :: Type
@@ -46,7 +52,7 @@ sEmpty :: Type
 sEmpty = TSum []
 
 tBool :: Type
-tBool = TSum [("true", pEmpty), ("false", sEmpty)]
+tBool = TSum [("true", pEmpty), ("false", pEmpty)]
 
 type CanBeEvaluated = Either Type Proc
 
@@ -56,6 +62,43 @@ type Check = ExceptT TypeError (Reader Env)
 
 addToEnv :: (String, Type) -> Check a -> Check a
 addToEnv (n, t) = local (\env -> (n, Left t) : env)
+
+-- Return a tuple of (var, type) pairs, fst -> Outputs, snd -> new Variables
+findTypesOfChannel :: Action -> Type -> Check ([(String, Type)], [(String, Type)])
+findTypesOfChannel (chan, items) t@(TSum sum) =
+  case lookup chan sum of
+    Nothing -> throwError $ NotChannel chan t
+    Just t -> matchItems t items
+  where
+    matchItems :: Type -> [ActionI] -> Check ([(String, Type)], [(String, Type)])
+    matchItems t@(TProd typs) actions =
+      if length typs /= length actions
+        then throwError $ NotChannel ("The number of Arguments is different" ++ show actions) t
+        else return (foldl (flip (flip addT . bifoldMap (,[]) ([],))) ([], []) (zipWith extractNames actions typs))
+    matchItems t [a] = case a of
+      Output s -> return ([(s, t)], [])
+      Input s -> return ([], [(s, t)])
+      Selection s -> return ([], [(s, t)])
+    matchItems _ _ = undefined
+    extractNames (Input x) t = Right [(x, t)]
+    extractNames (Output x) t = Left [(x, t)]
+    extractNames (Selection x) t = Right [(x, t)]
+findTypesOfChannel (chan, _) t = throwError $ NotChannel chan t
+
+addT :: (Monoid m, Monoid n) => (m, n) -> (m, n) -> (m, n)
+addT (a, x) (b, y) = (a <> b, x <> y)
+
+-- Test if a type satisfies the communication property
+satTcomm :: Type -> Bool
+satTcomm typ = case typ of
+  TProc ty -> False
+  TFun ty ty' -> False
+  TInd s ty -> satTcomm ty
+  TNum -> True
+  TBool -> True
+  TSum sums -> all (satTcomm . snd) sums
+  TProd tys -> all satTcomm tys
+  TVar s -> True
 
 check :: Proc -> Type -> Check Type
 check p t = case p of
@@ -70,7 +113,10 @@ check p t = case p of
       Just (Right p) -> addToEnv (process, TProc t) $ check p t
       Nothing -> throwError $ NotInScope process
   --
-  Prefix action pr -> undefined
+  Prefix action pr -> do
+    (outputs, vars) <- findTypesOfChannel action t
+
+    return $ trace ("Vars: " ++ show vars) $ TProc t
   --
   ExtChoice pleft pright -> do
     lhs <- check pleft t
@@ -133,6 +179,12 @@ checkExp exp = case exp of
 
 trivial :: Proc
 trivial = ExtChoice (Ite (Eq (Var "s") (Var "s'")) (CallProc "P" []) STOP) (CallProc "Q" [])
+
+withPrefix :: Proc
+withPrefix = Prefix ("in", [Input "x", Input "y"]) SKIP
+
+prefixT :: Type
+prefixT = TSum [("in", TProd [tBool, tBool]), ("out", tBool)]
 
 trivEnv :: Env
 trivEnv = [("s", Left $ TVar "X"), ("s'", Left $ TVar "X"), ("P", Left (TProc tBool)), ("Q", Right (ExtChoice (CallProc "P" []) STOP))]
