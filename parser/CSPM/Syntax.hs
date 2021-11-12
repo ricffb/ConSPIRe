@@ -5,11 +5,15 @@ import qualified Data.Set as Set
 
 type Programm = [Construct]
 
+type ArgName = String
+
+type TypeName = String
+
 data Construct
   = TypeVar String
   | NamedType String TBody
   | Assert (Set.Set String) String PType
-  | NamedProc String [String] Proc
+  | NamedProc String [(ArgName, TypeName)] Proc
   deriving (Show)
 
 data Proc

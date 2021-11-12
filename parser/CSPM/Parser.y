@@ -103,7 +103,7 @@ P_Type      : Proc '(' name ')' { PType $3 Nothing }
 
 P_Assign :: { Construct }
 P_Assign    : name '=' PProc               {NamedProc $1 [] $3}
-            | name '(' Seq ')' '=' PProc   {NamedProc $1 (reverse $3) $6}
+            | name '(' ArgSeq ')' '=' PProc   {NamedProc $1 (reverse $3) $6}
 
 PProc :: {Proc}
 PProc  : STOP                        { STOP }
@@ -134,6 +134,10 @@ VarDecls : VarDecl
 
 VarDecl : var '<-' Type -}
 
+ArgSeq :: { [(String, String)] }
+ArgSeq : ArgSeq ',' var ':' name    { ($3, $4) : $1 }
+       | var ':' name               { [($1, $3)] }
+
 Seq :: { [String] }
 Seq : Seq ',' var    { $3 : $1 }
       | {- empty -}  { [] }
@@ -145,17 +149,18 @@ Action :: { Action }
 
 ActionS :: { [ActionI] }
        : ActionS '?' var      { Input $3 : $1 }
-       | ActionS '!' var       { Output $3 : $1 }
+       | ActionS '!' var       { Output $3 : $1 } -- TODO: Make this Exp
        | ActionS '$' var       { Selection $3 : $1 }
        | {- empty -}           { [] }
+
+{- id.a.b -> TSum "id" -}
+
 
 Exp   : Exp '==' Exp            { Eq $1 $3 }
       | Exp '.' Exp             { Dot $1 $3 }
       | var                     { Var $1 }
-      | '(' Exp ')'             { Brack $2 }
+      | '(' Exp ')'             { Brack $2 } 
 
-
-{
 lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 

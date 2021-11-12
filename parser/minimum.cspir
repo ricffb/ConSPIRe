@@ -5,7 +5,7 @@ datatype T = in.X | out.X
 
 NondReg = in?x -> NondReg'(x)
 
-NondReg'(x) = (in?y -> if x==y then NondReg'(x) else NondReg'(x) |~| NondReg'(y)) 
+NondReg'(x : X) = (in?y -> if x==y then NondReg'(x) else NondReg'(x) |~| NondReg'(y)) 
             []
               (out!x -> NondReg'(x))
 
