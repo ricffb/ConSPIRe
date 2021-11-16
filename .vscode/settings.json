@@ -1,7 +1,12 @@
 {
     "cSpell.words": [
-        "foldl",
+        "Ampersat",
         "Brack",
-        "CSPM"
+        "CSPM",
+        "foldl",
+        "Monoid",
+        "pleft",
+        "pright",
+        "Tcomm"
     ]
 }
