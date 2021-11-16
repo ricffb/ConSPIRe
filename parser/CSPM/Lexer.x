@@ -29,15 +29,21 @@ $validident = [$alpha $digit \_ \']
 tokens :-
   $white+                               ;
   "--".*                                ;
-  STOP                               { lex' TokenStop         }
-  SKIP                                { lex' TokenSkip          }
-  if                                  { lex' TokenIf }
-  then                                { lex' TokenThen }
-  else                                { lex' TokenElse }
-  assert                              { lex' TokenAssert }
-  typevar                             { lex' TokenTypeVar }
-  datatype                            { lex' TokenDataType }
-  Proc                                { lex' TokenProc }´
+  STOP                                  { lex' TokenStop }
+  SKIP                                  { lex' TokenSkip }
+  if                                    { lex' TokenIf }
+  then                                  { lex' TokenThen }
+  else                                  { lex' TokenElse }
+  case                                  { lex' TokenCase }
+  of                                    { lex' TokenOf }
+  let                                   { lex' TokenLet }
+  within                                { lex' TokenIn }
+  true                                  { lex' TokenTrue }
+  false                                 { lex' TokenFalse }
+  assert                                { lex' TokenAssert }
+  typevar                               { lex' TokenTypeVar }
+  datatype                              { lex' TokenDataType }
+  Proc                                  { lex' TokenProc }
   $digit+                               { lex (TokenNum . read) }  
   @var                                  { lex  TokenVar }
   @name                                 { lex  TokenName }
@@ -91,37 +97,37 @@ data Token = Token AlexPosn TokenClass
 
 -- For nice parser error messages.
 unLex :: TokenClass -> String
-unlex TokenStop = "STOP"      
-unlex TokenSkip = "SKIP"       
-unlex TokenIf = "if"
-unlex TokenThen = "then"
-unlex TokenElse = "else"
-unlex TokenAssert = "assert"
-unlex TokenTypeVar = "typevar"
-unlex TokenDataType = "datatype"
-unlex TokenProc = "Proc"
-unlex TokenOCB = "{"
-unlex TokenCCB = "}"
-unlex TokenSlash = "\\"
-unlex TokenBar = "|"   
-unlex TokenOB = "("     
-unlex TokenCB = ")"     
-unlex TokenSemicolon = ";"
-unlex TokenAmpersat = "@"
-unlex TokenColon = ":"
-unlex TokenQm = "?"
-unlex TokenExcl = "!"
-unlex TokenDollar = "$"
-unlex TokenComma = ","
-unlex TokenEquals = "=="
-unlex TokenNotEquals = "!="
-unlex TokenBox = "[]"
-unlex TokenInt = "|~|"
-unlex TokenPrefix = "->"
-unlex TokenAssign = "<-"
-unlex TokenParOpen = "[|"
-unlex TokenParClose = "|]"
-unlex TokenVDash = "|-"
+unLex TokenStop = "STOP"      
+unLex TokenSkip = "SKIP"       
+unLex TokenIf = "if"
+unLex TokenThen = "then"
+unLex TokenElse = "else"
+unLex TokenAssert = "assert"
+unLex TokenTypeVar = "typevar"
+unLex TokenDataType = "datatype"
+unLex TokenProc = "Proc"
+unLex TokenOCB = "{"
+unLex TokenCCB = "}"
+unLex TokenSlash = "\\"
+unLex TokenBar = "|"   
+unLex TokenOB = "("     
+unLex TokenCB = ")"     
+unLex TokenSemicolon = ";"
+unLex TokenAmpersat = "@"
+unLex TokenColon = ":"
+unLex TokenQm = "?"
+unLex TokenExcl = "!"
+unLex TokenDollar = "$"
+unLex TokenComma = ","
+unLex TokenEquals = "=="
+unLex TokenNotEquals = "!="
+unLex TokenBox = "[]"
+unLex TokenInt = "|~|"
+unLex TokenPrefix = "->"
+unLex TokenAssign = "<-"
+unLex TokenParOpen = "[|"
+unLex TokenParClose = "|]"
+unLex TokenVDash = "|-"
 unLex (TokenNum i) = show i
 unLex (TokenVar s) = show s
 unLex (TokenName s) = show s
@@ -130,6 +136,13 @@ unLex TokenPlus = "+"
 unLex TokenMinus = "-"
 unLex TokenTimes = "*"
 unLex TokenDiv = "/"
+unLex TokenDot = "."
+unLex TokenLet = "let"
+unLex TokenCase = "case"
+unLex TokenOf   = "of"
+unLex TokenIn   = "within"
+unLex TokenTrue = "True"
+unLex TokenFalse = "False"
 unLex TokenEOF = "<EOF>"
 
 alexEOF :: Alex Token

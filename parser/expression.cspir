@@ -1,0 +1,7 @@
+
+typevar X
+datatype U = X.X
+datatype T = in.X.X | out.Bool.X
+
+P = let f = \ u : U -> pr (1, u) == pr (2, u) within in?x?y 
+    -> let o = f (x, y) within out!o!x -> SKIP    

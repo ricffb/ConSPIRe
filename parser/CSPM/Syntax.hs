@@ -11,7 +11,7 @@ type TypeName = String
 
 data Construct
   = TypeVar String
-  | NamedType String TBody
+  | NamedType String Type
   | Assert (Set.Set String) String PType
   | NamedProc String [(ArgName, TypeName)] Proc
   deriving (Show)
@@ -27,11 +27,10 @@ data Proc
   | Seq Proc Proc
   | Parallel (Set.Set String) Proc Proc
   | Hide (Set.Set String) Proc
+  | Let String Exp Proc
+  | PCaseExpr Exp [PCase]
+  | PLambda ArgName TypeName Proc
   | ReplIntChoice String (Set.Set String) Proc
-  deriving (Show)
-
-data Type
-  = TypeName String
   deriving (Show)
 
 -- The Type Construction Body
@@ -46,18 +45,49 @@ data PType
 
 data Exp
   = Eq Exp Exp
-  | Dot Exp Exp
-  | Var String
-  | Brack Exp
+  | App Exp Exp
+  | ELambda ArgName TypeName Exp
+  | ECaseExpr Exp [ECase]
+  | Lit Literal
+  | Tuple [Exp]
   deriving (Show)
+
+data Literal
+  = LInt Int
+  | LVar String
+  | LBool Bool
+  deriving (Show)
+
+data ECase = ECase String Exp
+  deriving (Show)
+
+data PCase = PCase String Proc
+  deriving (Show)
+
+data Pattern
+  = PVar String
+  | PDot Pattern Pattern
 
 data ActionI
   = Input String
-  | Output String
+  | Output Exp
   | Selection String
   deriving (Show)
 
 type Action = (String, [ActionI])
+
+type SumT a = (String, a)
+
+data Type
+  = TProc Type
+  | TFun Type Type
+  | TInd String Type
+  | TNum
+  | TBool
+  | TSum [SumT Type]
+  | TProd [Type]
+  | TVar String
+  deriving (Show, Eq)
 
 data TokenClass
   = TokenSkip
@@ -68,6 +98,12 @@ data TokenClass
   | TokenIf
   | TokenThen
   | TokenElse
+  | TokenCase
+  | TokenOf
+  | TokenLet
+  | TokenIn
+  | TokenTrue
+  | TokenFalse
   | TokenEq
   | TokenEquals
   | TokenNotEquals
