@@ -90,6 +90,7 @@ test-suite cspire-test
     , containers >=0.6
     , cspire
     , extra ==1.7.10
+    , hspec
     , mtl
     , transformers ==0.5.6.2
     , unordered-containers ==0.2.15.0
