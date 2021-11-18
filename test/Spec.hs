@@ -1,5 +1,6 @@
 import CSPM.Syntax
-import Lib (Env, TypeError, checkTop, pEmpty, runCheck)
+import qualified Data.Map as Map
+import Lib (Env (..), TypeError, checkTop, pEmpty, runCheck)
 import Test.Hspec
 
 main :: IO ()
@@ -14,7 +15,10 @@ main =
         let alph = alphabet withECaseEnv in checkTop withECaseEnv withECaseExpr alph `shouldBe` (Right (TProc alph) :: Either TypeError Type)
 
 tBool :: Type
-tBool = TSum [("true", pEmpty), ("false", pEmpty)]
+tBool = TSum [("myTrue", pEmpty), ("myFalse", pEmpty)]
+
+emptyEnv :: Env
+emptyEnv = Env {alphabet = TSum [], typeEnv = Map.empty, procEnv = Map.empty}
 
 trivial :: Proc
 trivial = ExtChoice (Ite (Eq (Lit $ LVar "s") (Lit $ LVar "s'")) (CallProc "P" []) STOP) (CallProc "Q" [])
@@ -41,6 +45,9 @@ prefixT :: Type
 prefixT = TSum [("in", TProd [tBool, TBool]), ("out", TBool)]
 
 trivEnv :: Env
-trivEnv = undefined
-
--- trivEnv = [("s", Left $ TVar "X"), ("s'", Left $ TVar "X"), ("P", Left (TProc tBool)), ("Q", Right (ExtChoice (CallProc "P" []) STOP))]
+trivEnv =
+  Env
+    { alphabet = tBool,
+      typeEnv = Map.fromList [("s", TVar "X"), ("s'", TVar "X"), ("P", TProc tBool)],
+      procEnv = Map.singleton "Q" $ ExtChoice (CallProc "P" []) STOP
+    }
