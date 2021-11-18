@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 
@@ -6,7 +8,10 @@
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Action (..), ActionI (..), Construct (..), Exp (..), Literal (LBool, LInt, LVar), Proc (..), Programm, Type (..))
+import CSPM.Syntax (Action (..), ActionI (..), Construct (..), ECase (ECase), Exp (..), Literal (LBool, LInt, LVar), Proc (..), Programm, SumT, Type (..))
+-- import qualified Data.HashMap.Lazy as Map
+
+import Control.Monad (foldM)
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -18,10 +23,9 @@ import Control.Monad.Reader
     runReader,
   )
 import Control.Monad.State (State)
-import Data.Bifoldable
+import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bifunctor (second)
--- import qualified Data.HashMap.Lazy as Map
-
+import Data.Functor ((<&>))
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import Data.Tuple.Extra (both)
@@ -37,6 +41,8 @@ data TypeError
   | NotInScope String
   | NotExpression String
   | NotChannel String Type
+  | NotSumType Type
+  | EmptyCase
   deriving (Show, Eq)
 
 pEmpty :: Type
@@ -47,23 +53,27 @@ sEmpty = TSum []
 
 data Env = Env
   { typeEnv :: Map.Map String Type,
-    procEnv :: Map.Map String Proc
+    procEnv :: Map.Map String Proc,
+    alphabet :: Type
   }
 
 type Check = ExceptT TypeError (Reader Env)
 
 addToEnv :: (String, Type) -> Check a -> Check a
-addToEnv (n, t) = local (\env -> Env {typeEnv = Map.insert n t (typeEnv env)})
+addToEnv (n, t) = local (\env -> env {typeEnv = Map.insert n t (typeEnv env)})
 
 addToEnv' :: [(String, Type)] -> Check a -> Check a
-addToEnv' xs = local (\env -> Env {typeEnv = Map.fromList xs `Map.union` typeEnv env})
+addToEnv' xs = local (\env -> env {typeEnv = Map.fromList xs `Map.union` typeEnv env})
 
 -- Return a tuple of (var, type) pairs, fst -> Outputs, snd -> new Variables
-findTypesOfChannel :: Action -> Type -> Check ([(Exp, Type)], [(String, Type)])
-findTypesOfChannel (chan, items) t@(TSum sum) =
-  case lookup chan sum of
-    Nothing -> throwError $ NotChannel chan t
-    Just t -> matchItems t items
+findTypesOfChannel :: Action -> Check ([(Exp, Type)], [(String, Type)])
+findTypesOfChannel (chan, items) = do
+  Env {alphabet} <- ask
+  case alphabet of
+    t@(TSum sum) -> case lookup chan sum of
+      Nothing -> throwError $ NotChannel chan t
+      Just t -> matchItems t items
+    _ -> throwError $ NotChannel chan alphabet
   where
     matchItems :: Type -> [ActionI] -> Check ([(Exp, Type)], [(String, Type)])
     matchItems t@(TProd typs) actions =
@@ -78,7 +88,6 @@ findTypesOfChannel (chan, items) t@(TSum sum) =
     extractNames (Input x) t = Right [(x, t)]
     extractNames (Output x) t = Left [(x, t)]
     extractNames (Selection x) t = Right [(x, t)]
-findTypesOfChannel (chan, _) t = throwError $ NotChannel chan t
 
 addT :: (Monoid m, Monoid n) => (m, n) -> (m, n) -> (m, n)
 addT (a, x) (b, y) = (a <> b, x <> y)
@@ -95,70 +104,77 @@ satTcomm typ = case typ of
   TProd tys -> all satTcomm tys
   TVar s -> True
 
-check :: Proc -> Type -> Check Type
-check p t = case p of
-  STOP -> return $ TProc t
+check :: Proc -> Check Type
+check p = case p of
+  STOP -> do
+    Env {alphabet} <- ask
+    return $ TProc alphabet
   --
-  SKIP -> return $ TProc t
+  SKIP -> do
+    Env {alphabet} <- ask
+    return $ TProc alphabet
   --
   CallProc process args -> do
-    env <- ask
-    let pEnv = procEnv env
-    let tEnv = typeEnv env
-    case tEnv !? process of
+    Env {alphabet, procEnv, typeEnv} <- ask
+    case typeEnv !? process of
       Just t -> return t
-      Nothing -> case pEnv !? process of
+      Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
-        Just pr -> addToEnv (process, TProc t) $ check pr t
+        Just pr -> addToEnv (process, TProc alphabet) $ check pr
   --
   Prefix action pr -> do
-    (outputs, vars) <- findTypesOfChannel action t
+    (outputs, vars) <- findTypesOfChannel action
     outputTypes <- mapM (uncurry checkExpHasType) outputs
-    addToEnv' vars $ check pr t
+    addToEnv' vars $ check pr
   --
   ExtChoice pleft pright -> do
-    lhs <- check pleft t
-    rhs <- check pright t
+    lhs <- check pleft
+    rhs <- check pright
+    Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == t -> case rhs of
+        | ty == alphabet -> case rhs of
           TProc ty'
-            | ty' == t -> return $ TProc t
-          _ -> throwError $ TypeMismatch rhs (TProc t)
-      _ -> throwError $ TypeMismatch lhs (TProc t)
+            | ty' == alphabet -> return $ TProc alphabet
+          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
+      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
   IntChoice pleft pright -> do
-    lhs <- check pleft t
-    rhs <- check pright t
+    lhs <- check pleft
+    rhs <- check pright
+    Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == t -> case rhs of
+        | ty == alphabet -> case rhs of
           TProc ty'
-            | ty' == t -> return $ TProc t
-          _ -> throwError $ TypeMismatch rhs (TProc t)
-      _ -> throwError $ TypeMismatch lhs (TProc t)
+            | ty' == alphabet -> return $ TProc alphabet
+          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
+      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
   Ite exp pleft pright -> do
     et <- checkExpHasType exp TBool
-    lhs <- check pleft t
-    rhs <- check pright t
+    lhs <- check pleft
+    rhs <- check pright
+    Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == t -> case rhs of
+        | ty == alphabet -> case rhs of
           TProc ty'
-            | ty' == t -> return $ TProc t
-          _ -> throwError $ TypeMismatch rhs (TProc t)
-      _ -> throwError $ TypeMismatch lhs (TProc t)
+            | ty' == alphabet -> return $ TProc alphabet
+          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
+      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
   Seq pr pr' -> do
-    p1Type <- check pr t
-    check pr' t
+    p1Type <- check pr
+    check pr'
   Parallel set pr pr' -> undefined
   Hide set pr -> undefined
   ReplIntChoice s set pr -> undefined
   PCaseExpr exp cases -> undefined
   PLambda arg typ pr -> undefined
-  Let var exp pr -> undefined
+  Let var exp pr -> do
+    expT <- checkExp exp
+    addToEnv (var, expT) $ check pr
 
 checkExpHasType :: Exp -> Type -> Check Type
 checkExpHasType exp t = do
@@ -181,10 +197,17 @@ checkExp exp = case exp of
     case tfun of
       TFun argT retT -> if argT == targ then return retT else throwError $ TypeMismatch argT targ
       _ -> throwError $ NotFunction tfun
-  ELambda argname typename expr -> undefined --do
-  --retT <- addToEnv (argname, typename) $ checkExp expr
-  -- return TFun T Type
-  ECaseExpr exp cases -> undefined
+  ELambda argname typename expr -> do
+    env <- ask
+    let tEnv = typeEnv env
+    case Map.lookup typename tEnv of
+      Nothing -> throwError . NotInScope $ "The Type " ++ typename ++ "was not defined."
+      Just ty -> do
+        retT <- addToEnv (argname, ty) $ checkExp expr
+        return $ TFun ty retT
+  ECaseExpr exp cases -> do
+    expT <- checkExp exp
+    checkECase expT cases
   Tuple exprs -> do
     typs <- mapM checkExp exprs
     return $ TProd typs
@@ -198,6 +221,29 @@ checkLit l = case l of
       Nothing -> throwError $ NotInScope s
       Just nt -> return nt
   LBool b -> return TBool
+
+checkECase :: Type -> [ECase] -> Check Type
+checkECase _ [] = throwError EmptyCase
+checkECase t@(TSum ts) (c : cs) = do
+  init <- checkCase c
+  foldM foldCase init cs
+  where
+    foldCase :: Type -> ECase -> Check Type
+    foldCase ty cs = do
+      ct <- checkCase cs
+      if ct == ty then return ty else throwError $ TypeMismatch ty ct
+    checkCase :: ECase -> Check Type
+    checkCase (ECase ident exp)
+      | Just ty <- lookup ident ts =
+        checkExp exp
+          >>= ( \case
+                  (TFun argT resT)
+                    | argT == ty -> return resT
+                    | otherwise -> throwError $ TypeMismatch ty argT
+                  t -> throwError $ NotFunction t
+              )
+      | otherwise = throwError $ NotChannel ident t
+checkECase t _ = throwError $ NotSumType t
 
 tBool :: Type
 tBool = TSum [("true", pEmpty), ("false", pEmpty)]
@@ -221,4 +267,4 @@ runCheck :: Env -> Check a -> Either TypeError a
 runCheck env = flip runReader env . runExceptT
 
 checkTop :: Env -> Proc -> Type -> Either TypeError Type
-checkTop env x t = runCheck env (check x t)
+checkTop env x t = runCheck (env {alphabet = t}) (check x)
