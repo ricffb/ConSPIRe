@@ -2,6 +2,11 @@
 typevar X
 datatype U = X.X
 datatype T = in.X.X | out.Bool.X
+datatype MyList = \L -> nil.() | cons.Bool.L
+datatype Big = X.X.X.Bool
+datatype Big2 = X.X.X.(X.Bool)
+
+ll = cons.(true, (cons.(false, nil.())))
 
 P = let f = \ u : U -> pr (1, u) == pr (2, u) within in?x?y 
     -> let o = f (x, y) within out!o!x -> SKIP    
