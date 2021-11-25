@@ -91,28 +91,37 @@ Construct :: { Construct }
 Construct   : Typedecl    {$1}
             | Assertion   {$1}
             | P_Assign    {$1}
+            | ExprDecl     {$1}
 
 Typedecl :: { Construct }
 Typedecl    : typevar name { TypeVar $2 }
             | datatype name '=' TypeBody { NamedType $2 $4 }
 
 TypeBody :: { Type }
-TypeBody    : T_Product    { TProd $ reverse $1 }
+TypeBody    : T_Product    { TProd $1 }
             | T_Sum        { TSum $ reverse $1}
+            | '\\' name '->' TypeBody { TInd $2 $4 }
+            | TypeBody '->' TypeBody { TFun $1 $3}
             | name         { TVar $1 }
+            | '(' TypeBody ')' {$2}
+
+
 T_Sum :: { [SumT Type] } 
-T_Sum : var '.' T_Product           { [($1, TProd $ reverse $3)] }
-      | T_Sum '|' var '.' T_Product { ($3, TProd $ reverse $5):$1}
+T_Sum : var '.' TypeBody            { [($1, $3)] }
+      | T_Sum '|' var '.' TypeBody  { ($3, $5):$1 }
       | var                         { [($1, TProd [])]}               
 
 T_Product   :: { [Type] }
-T_Product   : name      	       {[TVar $1]}
-            | T_Product '.' name     {TVar $3 : $1}
+T_Product   :  TypeBody '.' T_Product {$1:$3}
+            | TypeBody '.' TypeBody  { [$1, $3]}
             | {- empty -}            { [] }
             | '(' ')'                { [] }
 
 Assertion :: { Construct }
 Assertion   : assert Set '|-' name ':' P_Type {Assert $2 $4 $6}
+
+ExprDecl :: { Construct }
+ExprDecl : var '=' Exp { NamedExpr $1 $3 }
 
 P_Type :: { PType }
 P_Type      : Proc '(' name ')' { PType $3 Nothing }
@@ -137,7 +146,7 @@ PProc :: {Proc}
       | '(' PProc ')'                   { $2 }
       | let var '=' Exp within PProc        { Let $2 $4 $6 }
       | case Exp PCases                 { PCaseExpr $2 $3 }
-      | '\\' var ':' name '@' PProc     { PLambda $2 $4 $6 } -- TODO: TypeExpression
+      | '\\' var ':' TypeBody '@' PProc { PLambda $2 $4 $6 }
 
 PCases :: { [PCase] }
       : PCases of var '->' PProc       { (PCase $3 $5) : $1 }
@@ -185,9 +194,10 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
    -- | Pattern                     { Pattern $1 }
       | '(' Exp ')'                 { $2 }
       | Exp Exp %prec APP           { App $1 $2 }
-      | '\\' var ':' name '->' Exp  { ELambda $2 $4 $6 }
+      | '\\' var ':' TypeBody '->' Exp  { ELambda $2 $4 $6 }
       | case Exp Cases              { ECaseExpr $2 $3 }
-      | '(' ExpSeq ')'              { Tuple $2 }
+      | '(' ExpSeq ')'              { Tuple $ reverse $2 }
+      | var '.' Exp                 { Sum $1 $3 }
 
 Lit   :: { Literal }
       : number          { LInt $1 }
@@ -197,6 +207,7 @@ Lit   :: { Literal }
 
 ExpSeq : ExpSeq ',' Exp  { $3 : $1 }
        | Exp ',' Exp     { [$3, $1]} 
+       | {[]}
 
 Cases :: { [ECase] }
       : Cases of var '->' Exp       { (ECase $3 $5) : $1 }

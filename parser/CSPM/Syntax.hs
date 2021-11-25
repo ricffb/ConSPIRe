@@ -12,6 +12,8 @@ type TypeName = String
 data Construct
   = TypeVar String
   | NamedType String Type
+  | NamedExpr String Exp
+  | TypeAnnotation String Type
   | Assert (Set.Set String) String PType
   | NamedProc String [(ArgName, TypeName)] Proc
   deriving (Show)
@@ -29,7 +31,7 @@ data Proc
   | Hide (Set.Set String) Proc
   | Let String Exp Proc
   | PCaseExpr Exp [PCase]
-  | PLambda ArgName TypeName Proc
+  | PLambda ArgName Type Proc
   | ReplIntChoice String (Set.Set String) Proc
   deriving (Show)
 
@@ -46,10 +48,11 @@ data PType
 data Exp
   = Eq Exp Exp
   | App Exp Exp
-  | ELambda ArgName TypeName Exp
+  | ELambda ArgName Type Exp
   | ECaseExpr Exp [ECase]
   | Lit Literal
   | Tuple [Exp]
+  | Sum String Exp
   deriving (Show)
 
 data Literal
