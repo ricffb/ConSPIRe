@@ -3,8 +3,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 
--- {-# LANGUAGE LambdaCase #-}
-
 module Lib where
 
 import CSPM.Parser
@@ -54,6 +52,7 @@ sEmpty = TSum []
 data Env = Env
   { typeEnv :: Map.Map String Type,
     procEnv :: Map.Map String Proc,
+    exprEnv :: Map.Map String Exp,
     alphabet :: Type
   }
 
@@ -254,6 +253,17 @@ checkECase t@(TSum ts) (c : cs) = do
               )
       | otherwise = throwError $ NotChannel ident t
 checkECase t _ = throwError $ NotSumType t
+
+class Subsume a where
+  (|<|) :: a -> a -> Maybe Bool
+
+instance Subsume Type where
+  (TSum sts) |<| (TInd var (TSum ys)) = foldM (flip (fmap (&&) mapSubsume)) True sts
+    where
+      mapSubsume :: SumT Type -> Maybe Bool
+      mapSubsume (s, t) = do
+        t' <- lookup s ys
+        return $ t |<| t'
 
 tBool :: Type
 tBool = TSum [("true", pEmpty), ("false", pEmpty)]
