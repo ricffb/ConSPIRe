@@ -197,20 +197,30 @@ checkExp exp = case exp of
     case tfun of
       TFun argT retT -> if argT == targ then return retT else throwError $ TypeMismatch argT targ
       _ -> throwError $ NotFunction tfun
-  ELambda argname typename expr -> do
+  ELambda argname t@(TVar typename) expr -> do
     env <- ask
     let tEnv = typeEnv env
     case Map.lookup typename tEnv of
-      Nothing -> throwError . NotInScope $ "The Type " ++ typename ++ "was not defined."
+      Nothing -> do
+        retT <- addToEnv (argname, t) $ checkExp expr
+        return $ TFun t retT
       Just ty -> do
         retT <- addToEnv (argname, ty) $ checkExp expr
         return $ TFun ty retT
+  ELambda argname ty expr -> do
+    env <- ask
+    let tEnv = typeEnv env
+    retT <- addToEnv (argname, ty) $ checkExp expr
+    return $ TFun ty retT
   ECaseExpr exp cases -> do
     expT <- checkExp exp
     checkECase expT cases
   Tuple exprs -> do
     typs <- mapM checkExp exprs
     return $ TProd typs
+  Sum chan expr -> do
+    exprT <- checkExp expr
+    return $ TSum [(chan, exprT)]
 
 checkLit :: Literal -> Check Type
 checkLit l = case l of
