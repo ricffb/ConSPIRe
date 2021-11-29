@@ -6,7 +6,7 @@
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Action (..), ActionI (..), Construct (..), ECase (ECase), Exp (..), Literal (LBool, LInt, LVar), Proc (..), Programm, SumT, Type (..))
+import CSPM.Syntax (Action (..), ActionI (..), Construct (..), ECase (ECase), Exp (..), Literal (LBool, LInt, LVar), Proc (..), Programm, SumT, Type (..), (</))
 -- import qualified Data.HashMap.Lazy as Map
 
 import Control.Monad (foldM)
@@ -23,11 +23,11 @@ import Control.Monad.Reader
 import Control.Monad.State (State)
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bifunctor (second)
-import Data.Functor ((<&>))
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import Data.Tuple.Extra (both)
 import Debug.Trace (trace)
+import Subsume (Subsume ((|<|)))
 import Text.Show (Show)
 import Utility (safeHead)
 
@@ -134,9 +134,9 @@ check p = case p of
     Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == alphabet -> case rhs of
+        | ty |<| alphabet -> case rhs of
           TProc ty'
-            | ty' == alphabet -> return $ TProc alphabet
+            | ty' |<| alphabet -> return $ TProc alphabet
           _ -> throwError $ TypeMismatch rhs (TProc alphabet)
       _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
@@ -146,9 +146,9 @@ check p = case p of
     Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == alphabet -> case rhs of
+        | ty |<| alphabet -> case rhs of
           TProc ty'
-            | ty' == alphabet -> return $ TProc alphabet
+            | ty' |<| alphabet -> return $ TProc alphabet
           _ -> throwError $ TypeMismatch rhs (TProc alphabet)
       _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
@@ -159,9 +159,9 @@ check p = case p of
     Env {alphabet} <- ask
     case lhs of
       TProc ty
-        | ty == alphabet -> case rhs of
+        | ty |<| alphabet -> case rhs of
           TProc ty'
-            | ty' == alphabet -> return $ TProc alphabet
+            | ty' |<| alphabet -> return $ TProc alphabet
           _ -> throwError $ TypeMismatch rhs (TProc alphabet)
       _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   --
@@ -196,7 +196,7 @@ checkExp exp = case exp of
     tfun <- checkExp fun
     targ <- checkExp arg
     case tfun of
-      TFun argT retT -> if argT == targ then return retT else throwError $ TypeMismatch argT targ
+      TFun argT retT -> if targ |<| argT then return retT else throwError $ TypeMismatch argT targ
       _ -> throwError $ NotFunction tfun
   ELambda argname t@(TVar typename) expr -> do
     env <- ask
