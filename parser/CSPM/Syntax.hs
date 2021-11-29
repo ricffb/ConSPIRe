@@ -1,5 +1,6 @@
 module CSPM.Syntax where
 
+import Data.Bifunctor (second)
 import Data.Char
 import qualified Data.Set as Set
 
@@ -143,3 +144,15 @@ data TokenClass
   | TokenEOF
   | TokenFold
   deriving (Show)
+
+-- Insert a type on Place of every Type variable
+(</) :: Type -> String -> Type -> Type
+t </ var = \t' -> case t of
+  TProc ty -> TProc $ (</) ty var t'
+  TFun ty ty' -> TFun ((</) ty var t') ((</) ty' var t')
+  TInd s ty -> TInd s $ (</) ty var t'
+  TNum -> TNum
+  TBool -> TBool
+  TSum tys -> TSum $ second (\ty -> (</) ty var t') <$> tys
+  TProd tys -> TProd $ (\ty -> (</) ty var t') <$> tys
+  TVar s -> if s == var then t' else TVar s
