@@ -53,6 +53,7 @@ data Exp
   | Lit Literal
   | Tuple [Exp]
   | Sum String Exp
+  | Fold Exp Exp
   deriving (Show)
 
 data Literal
@@ -140,4 +141,5 @@ data TokenClass
   | TokenDataType
   | TokenProc
   | TokenEOF
+  | TokenFold
   deriving (Show)

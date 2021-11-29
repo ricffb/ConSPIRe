@@ -29,6 +29,7 @@ import qualified Data.Map as Map
 import Data.Tuple.Extra (both)
 import Debug.Trace (trace)
 import Text.Show (Show)
+import Utility (safeHead)
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
@@ -40,6 +41,7 @@ data TypeError
   | NotExpression String
   | NotChannel String Type
   | NotSumType Type
+  | NotInductive Type
   | EmptyCase
   deriving (Show, Eq)
 
@@ -220,6 +222,21 @@ checkExp exp = case exp of
   Sum chan expr -> do
     exprT <- checkExp expr
     return $ TSum [(chan, exprT)]
+  Fold ind fun -> do
+    indT <- checkExp ind
+    indT' <- fitInductiveType indT
+    case indT' of
+      Nothing -> throwError $ NotInductive indT
+      Just (TInd var t) -> do
+        funT <- checkExp fun
+        case funT of
+          TFun dom img ->
+            let tu = (t </ var $ img)
+             in if dom |<| tu
+                  then return img
+                  else throwError $ TypeMismatch tu dom
+          _ -> throwError $ NotFunction funT
+      _ -> undefined
 
 checkLit :: Literal -> Check Type
 checkLit l = case l of
@@ -254,16 +271,11 @@ checkECase t@(TSum ts) (c : cs) = do
       | otherwise = throwError $ NotChannel ident t
 checkECase t _ = throwError $ NotSumType t
 
-class Subsume a where
-  (|<|) :: a -> a -> Maybe Bool
-
-instance Subsume Type where
-  (TSum sts) |<| (TInd var (TSum ys)) = foldM (flip (fmap (&&) mapSubsume)) True sts
-    where
-      mapSubsume :: SumT Type -> Maybe Bool
-      mapSubsume (s, t) = do
-        t' <- lookup s ys
-        return $ t |<| t'
+-- Return a user defined type if there exist one
+fitInductiveType :: Type -> Check (Maybe Type)
+fitInductiveType ty = do
+  Env {typeEnv} <- ask
+  return $ safeHead [ty' | ty'@(TInd _ _) <- Map.elems typeEnv, ty |<| ty']
 
 tBool :: Type
 tBool = TSum [("true", pEmpty), ("false", pEmpty)]

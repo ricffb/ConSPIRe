@@ -28,6 +28,7 @@ import CSPM.Lexer
       case            { Token _ TokenCase }
       of              { Token _ TokenOf }
       let             { Token _ TokenLet }
+      fold            { Token _ Fold }
       within          { Token _ TokenIn }
       true            { Token _ TokenTrue }
       false           { Token _ TokenFalse }
@@ -198,6 +199,7 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | case Exp Cases              { ECaseExpr $2 $3 }
       | '(' ExpSeq ')'              { Tuple $ reverse $2 }
       | var '.' Exp                 { Sum $1 $3 }
+      | fold Exp Exp                { Fold $1 $2 }
 
 Lit   :: { Literal }
       : number          { LInt $1 }

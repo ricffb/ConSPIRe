@@ -43,6 +43,7 @@ tokens :-
   assert                                { lex' TokenAssert }
   typevar                               { lex' TokenTypeVar }
   datatype                              { lex' TokenDataType }
+  fold                                  { lex' TokenFold }
   Proc                                  { lex' TokenProc }
   $digit+                               { lex (TokenNum . read) }  
   @var                                  { lex  TokenVar }
