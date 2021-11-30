@@ -200,6 +200,13 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | '(' ExpSeq ')'              { Tuple $ reverse $2 }
       | var '.' Exp                 { Sum $1 $3 }
       | fold Exp Exp                { Fold $2 $3 }
+      | Exp '+' Exp                 { MathOp [$1, $3] }
+      | Exp '-' Exp                 { MathOp [$1, $3] }
+      | Exp '*' Exp                 { MathOp [$1, $3] }
+      | Exp '/' Exp                 { MathOp [$1, $3] }
+      | Exp '/' Exp                 { MathOp [$1, $3] }
+      | Exp '!=' Exp                { Eq $1 $3 }
+
 
 Lit   :: { Literal }
       : number          { LInt $1 }
