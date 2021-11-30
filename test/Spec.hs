@@ -20,7 +20,7 @@ tBool :: Type
 tBool = TSum [("myTrue", pEmpty), ("myFalse", pEmpty)]
 
 emptyEnv :: Env
-emptyEnv = Env {alphabet = TSum [], typeEnv = Map.empty, procEnv = Map.empty}
+emptyEnv = Env {alphabet = TSum [], typeEnv = Map.empty, procEnv = Map.empty, exprEnv = Map.empty}
 
 trivial :: Proc
 trivial = ExtChoice (Ite (Eq (Lit $ LVar "s") (Lit $ LVar "s'")) (CallProc "P" []) STOP) (CallProc "Q" [])
@@ -59,7 +59,7 @@ trivEnv =
 foldEnv :: Env
 foldEnv =
   Env
-    { alphabet = TSum [("asklen", TVar "MyList"), ("retlen", TVar "Int")],
+    { alphabet = TSum [("asklen", TInd "L" (TSum [("nil", TProd []), ("cons", TProd [TBool, TVar "L"])])), ("retlen", TNum)],
       typeEnv = Map.fromList [("MyList", TInd "L" (TSum [("nil", TProd []), ("cons", TProd [TVar "Bool", TVar "L"])])), ("Bool", TBool), ("Int", TNum), ("snd", TFun (TProd [TVar "Bool", TVar "Int"]) (TVar "Int"))],
       procEnv = Map.empty,
       exprEnv =
