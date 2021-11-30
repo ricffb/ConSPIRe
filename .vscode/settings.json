@@ -6,6 +6,7 @@
         "Bifunctor",
         "Brack",
         "CSPM",
+        "fmap",
         "foldl",
         "Monoid",
         "pleft",
