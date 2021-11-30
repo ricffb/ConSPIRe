@@ -4,6 +4,7 @@ import CSPM.Syntax
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (second))
 import Data.Maybe (fromMaybe)
+import TypeLib ((</))
 
 class Subsume a where
   (|<|) :: a -> a -> Bool
