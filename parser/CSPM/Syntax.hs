@@ -2,6 +2,8 @@ module CSPM.Syntax where
 
 import Data.Bifunctor (second)
 import Data.Char
+import Data.Foldable.Extra (Foldable)
+import Data.Functor (Functor)
 import qualified Data.Set as Set
 
 type Programm = [Construct]
@@ -55,6 +57,7 @@ data Exp
   | Tuple [Exp]
   | Sum String Exp
   | Fold Exp Exp
+  | MathOp [Exp]
   deriving (Show)
 
 data Literal
@@ -93,6 +96,17 @@ data Type
   | TProd [Type]
   | TVar String
   deriving (Show, Eq)
+
+mapVar :: (String -> Type) -> Type -> Type
+mapVar f ty = case ty of
+  TProc ty' -> TProc $ mapVar f ty'
+  TFun ty' ty_a -> TFun (mapVar f ty') (mapVar f ty_a)
+  TInd a ty' -> TInd a (mapVar f ty')
+  TNum -> TNum
+  TBool -> TBool
+  TSum x0 -> TSum $ second (mapVar f) <$> x0
+  TProd tys -> TProd $ mapVar f <$> tys
+  TVar a -> f a
 
 data TokenClass
   = TokenSkip
@@ -147,12 +161,4 @@ data TokenClass
 
 -- Insert a type on Place of every Type variable
 (</) :: Type -> String -> Type -> Type
-t </ var = \t' -> case t of
-  TProc ty -> TProc $ (</) ty var t'
-  TFun ty ty' -> TFun ((</) ty var t') ((</) ty' var t')
-  TInd s ty -> TInd s $ (</) ty var t'
-  TNum -> TNum
-  TBool -> TBool
-  TSum tys -> TSum $ second (\ty -> (</) ty var t') <$> tys
-  TProd tys -> TProd $ (\ty -> (</) ty var t') <$> tys
-  TVar s -> if s == var then t' else TVar s
+t </ var = \t' -> mapVar (\s -> if s == var then t' else TVar s) t
