@@ -5,8 +5,13 @@ datatype T = in.X.X | out.Bool.X
 datatype MyList = \L -> nil.() | cons.Bool.L
 datatype Big = X.X.X.Bool
 datatype Big2 = X.X.X.(X.Bool)
-
+datatype Len = asklen.MyList | retlen.Int
 ll = cons.(true, (cons.(false, nil.())))
 
-P = let f = \ u : U -> pr (1, u) == pr (2, u) within in?x?y 
-    -> let o = f (x, y) within out!o!x -> SKIP    
+P = let f = \ u : U -> pr 1 u == pr 2 u within in?x?y 
+    -> let o = f (x, y) within out!o!x -> SKIP
+
+Q = asklen?list -> let len = fold list calcLen within retlen!len -> SKIP
+
+calcLen = \xs : nil.() | cons.Bool.Int -> case xs of nil -> \y : () -> 0 
+                                                  of cons -> \tpl : Bool.Int -> 1 + snd tpl
