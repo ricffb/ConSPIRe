@@ -29,6 +29,7 @@ library
   exposed-modules:
       Lib
       Subsume
+      TypeLib
       Utility
       CSPM.Lexer
       CSPM.Parser
