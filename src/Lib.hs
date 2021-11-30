@@ -6,10 +6,11 @@
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Action (..), ActionI (..), Construct (..), ECase (ECase), Exp (..), Literal (LBool, LInt, LVar), Proc (..), Programm, SumT, Type (..), (</))
+import CSPM.Syntax (Action, Action' (..), ActionI, ActionI' (..), Construct (..), ECase, ECase' (..), Exp, Exp' (..), Literal (LBool, LInt, LVar), Proc, Proc' (..), Programm, SumT, Type (..))
 -- import qualified Data.HashMap.Lazy as Map
 
-import Control.Monad (foldM)
+-- import qualified Data.HashMap.Lazy as Map
+import Control.Monad (foldM, foldM_)
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -22,13 +23,15 @@ import Control.Monad.Reader
   )
 import Control.Monad.State (State)
 import Data.Bifoldable (Bifoldable (bifoldMap))
-import Data.Bifunctor (second)
+import Data.Bifunctor (Bifunctor, bimap, first, second)
 import Data.Map ((!?))
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Tuple.Extra (both)
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceShow)
 import Subsume (Subsume ((|<|)))
 import Text.Show (Show)
+import TypeLib (mapVar, resolve, (</))
 import Utility (safeHead)
 
 someFunc :: IO ()
@@ -186,6 +189,7 @@ checkExpHasType exp t = do
 
 -- Check Expression for type
 checkExp :: Exp -> Check Type
+-- checkExp exp | traceShow exp False = undefined
 checkExp exp = case exp of
   Eq exp' exp2 -> do
     rhs <- checkExp exp'
@@ -209,8 +213,6 @@ checkExp exp = case exp of
         retT <- addToEnv (argname, ty) $ checkExp expr
         return $ TFun ty retT
   ELambda argname ty expr -> do
-    env <- ask
-    let tEnv = typeEnv env
     retT <- addToEnv (argname, ty) $ checkExp expr
     return $ TFun ty retT
   ECaseExpr exp cases -> do
@@ -223,10 +225,17 @@ checkExp exp = case exp of
     exprT <- checkExp expr
     return $ TSum [(chan, exprT)]
   Fold ind fun -> do
-    indT <- checkExp ind
-    indT' <- fitInductiveType indT
-    case indT' of
-      Nothing -> throwError $ NotInductive indT
+    inferredT <- checkExp ind
+    indT <- case inferredT of
+      TVar s -> do
+        Env {typeEnv} <- ask
+        case typeEnv !? s of
+          Just ty@(TInd _ _) -> return $ Just ty
+          Just ty -> fitInductiveType ty
+          Nothing -> throwError $ NotInScope s
+      _ -> fitInductiveType inferredT
+    case indT of
+      Nothing -> throwError $ NotInductive inferredT
       Just (TInd var t) -> do
         funT <- checkExp fun
         case funT of
@@ -237,14 +246,19 @@ checkExp exp = case exp of
                   else throwError $ TypeMismatch tu dom
           _ -> throwError $ NotFunction funT
       _ -> undefined
+  MathOp exprs -> do
+    mapM_ (`checkExpHasType` TNum) exprs
+    return TNum
 
 checkLit :: Literal -> Check Type
 checkLit l = case l of
   LInt n -> return TNum
   LVar s -> do
-    env <- ask
-    case typeEnv env !? s of
-      Nothing -> throwError $ NotInScope s
+    Env {typeEnv, exprEnv} <- ask
+    case typeEnv !? s of
+      Nothing -> case exprEnv !? s of
+        Nothing -> throwError $ NotInScope s
+        Just expr -> checkExp expr -- TODO: Watch out for infinite  recursion; Is there Memoization?
       Just nt -> return nt
   LBool b -> return TBool
 
@@ -273,9 +287,21 @@ checkECase t _ = throwError $ NotSumType t
 
 -- Return a user defined type if there exist one
 fitInductiveType :: Type -> Check (Maybe Type)
+fitInductiveType ty@(TInd _ _) = return $ Just ty
 fitInductiveType ty = do
   Env {typeEnv} <- ask
   return $ safeHead [ty' | ty'@(TInd _ _) <- Map.elems typeEnv, ty |<| ty']
+
+expand :: Env -> Proc -> Proc
+expand Env {typeEnv} = fmap (resolve typeEnv)
+
+expandEnv :: Env -> Env
+expandEnv Env {procEnv, exprEnv, typeEnv, alphabet} = Env {typeEnv = rTypeEnv, exprEnv = rExprEnv, procEnv = rProcEnv, alphabet = rAlpha}
+  where
+    rTypeEnv = resolve typeEnv <$> typeEnv
+    rExprEnv = fmap (resolve rTypeEnv) <$> exprEnv
+    rProcEnv = fmap (resolve rTypeEnv) <$> procEnv
+    rAlpha = resolve rTypeEnv alphabet
 
 tBool :: Type
 tBool = TSum [("true", pEmpty), ("false", pEmpty)]
@@ -299,4 +325,7 @@ runCheck :: Env -> Check a -> Either TypeError a
 runCheck env = flip runReader env . runExceptT
 
 checkTop :: Env -> Proc -> Type -> Either TypeError Type
-checkTop env x t = runCheck (env {alphabet = t}) (check x)
+checkTop env x t = runCheck expandE (check $ expand expandE x)
+  where
+    alphaEnv = (env {alphabet = t})
+    expandE = expandEnv alphaEnv
