@@ -3,6 +3,7 @@
 module CSPM.Parser (parse, parseFile) where
 
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 import Data.Char
 import CSPM.Syntax
 import CSPM.Lexer
@@ -119,7 +120,15 @@ T_Product   :  TypeBody '.' T_Product {$1:$3}
             | '(' ')'                { [] }
 
 Assertion :: { Construct }
-Assertion   : assert Set '|-' name ':' P_Type {Assert $2 $4 $6}
+Assertion   : assert ConstSet '|-' name ':' P_Type {Assert $2 $4 $6}
+
+ConstSet    :: { Map.Map String Type }
+            : '{' ConstSeq '}' { Map.fromList $2 }
+
+ConstSeq    :: {[(String, Type)]}
+            : ConstSeq ',' var ':' TypeBody     {($3, $5):$1}
+            |  var ':' TypeBody                 {[($1, $3)]}
+            | {- empty -}                       {[]}
 
 ExprDecl :: { Construct }
 ExprDecl : var '=' Exp { NamedExpr $1 $3 }
@@ -143,7 +152,7 @@ PProc :: {Proc}
       | PProc ';' PProc                 { Seq $1 $3 }
       | PProc '[|' Set '|]' PProc       { Parallel $3 $1 $5 }
       | PProc '\\' Set                  { Hide $3 $1 }
-      | '|~|' var ':' Set '@' PProc     { ReplIntChoice $2 $4 $6 }
+      | '|~|' var ':' TypeBody '@' PProc     { ReplIntChoice $2 $4 $6 }
       | '(' PProc ')'                   { $2 }
       | let var '=' Exp within PProc        { Let $2 $4 $6 }
       | case Exp PCases                 { PCaseExpr $2 $3 }
@@ -154,11 +163,14 @@ PCases :: { [PCase] }
       | of var '->' PProc              { [PCase $2 $4] }
 
 
-Set  ::  { Set.Set String }
+Set  ::  { Set.Set SElem }
 Set   : '{' SetCont '}' { Set.fromList $2 }
 
-SetCont ::  { [String] }
-    : Seq {$1}
+SetCont ::  { [SElem] }
+    : SExp   {[$1]}
+    | SetCont ',' SExp {$3 : $1}
+    | {-empty-} {[]} 
+
 
 {-
 Type : name 
@@ -190,6 +202,7 @@ ActionS :: { [ActionI] }
 {- id.a.b -> TSum "id" -}
 
 
+Exp :: {Exp}
 Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Lit                         { Lit $1 }
    -- | Pattern                     { Pattern $1 }
@@ -207,12 +220,41 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Exp '/' Exp                 { MathOp [$1, $3] }
       | Exp '!=' Exp                { Eq $1 $3 }
 
+SExp :: { SElem }
+SExp   : SExp '==' SExp             { Eq $1 $3 }
+      | SLit                        { Lit $1 }
+      | '(' SExp ')'                 { $2 }
+      | SExp SExp %prec APP           { App $1 $2 }
+      | '\\' var ':' TypeBody '->' SExp  { ELambda $2 $4 $6 }
+      | case SExp SCases              { ECaseExpr $2 $3 }
+      | '(' SExpSeq ')'              { Tuple $ reverse $2 }
+      | var '.' SExp                 { Sum $1 $3 }
+      | fold SExp SExp                { Fold $2 $3 }
+      | SExp '+' SExp                 { MathOp [$1, $3] }
+      | SExp '-' SExp                 { MathOp [$1, $3] }
+      | SExp '*' SExp                 { MathOp [$1, $3] }
+      | SExp '/' SExp                 { MathOp [$1, $3] }
+      | SExp '/' SExp                 { MathOp [$1, $3] }
+      | SExp '!=' SExp                { Eq $1 $3 }
+
+SExpSeq : SExpSeq ',' SExp  { $3 : $1 }
+       | SExp ',' SExp     { [$3, $1]} 
+       | {[]}
+
+SCases :: { [SCase] }
+      : SCases of var '->' SExp       { (ECase $3 $5) : $1 }
+      | of var '->' SExp             { [ECase $2 $4] }
+
 
 Lit   :: { Literal }
       : number          { LInt $1 }
       | var             { LVar $1 }
       | true            { LBool True }
       | false           { LBool False }
+
+SLit :: { SLiteral }
+      : '*' '{' TypeBody '}'  {LStar $3}
+      | Lit {LLit $1}
 
 ExpSeq : ExpSeq ',' Exp  { $3 : $1 }
        | Exp ',' Exp     { [$3, $1]} 

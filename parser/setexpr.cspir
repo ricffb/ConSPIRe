@@ -1,0 +1,12 @@
+typevar X
+datatype U = a.() | b.() | c.()
+datatype T = send.U.U.X | recv.U.U.X
+
+A = send!a.()!b.()?x -> STOP
+B = recv!b.()?from?m -> STOP
+
+Net = send?from?to?m -> recv!to!from!m -> Net
+
+Impl = ( A [| {} |] B ) [| {send.*{U.U.X}, recv.*{U.U.X}}|] Net
+
+assert {} |- Impl : Proc(T)

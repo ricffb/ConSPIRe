@@ -1,5 +1,6 @@
 import CSPM.Syntax
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Lib (Env (..), TypeError, checkTop, pEmpty, runCheck)
 import Test.Hspec
 
@@ -15,6 +16,8 @@ main =
         let alph = alphabet withECaseEnv in checkTop withECaseEnv withECaseExpr alph `shouldBe` (Right (TProc alph) :: Either TypeError Type)
       it "can deal with inductive types" $
         let alph = alphabet foldEnv in checkTop foldEnv foldProc alph `shouldBe` (Right (TProc alph) :: Either TypeError Type)
+      it "can handle sets in parallel op" $
+        let alph = alphabet parallelEnv in checkTop parallelEnv parallelProc alph `shouldBe` (Right (TProc alph) :: Either TypeError Type)
 
 tBool :: Type
 tBool = TSum [("myTrue", pEmpty), ("myFalse", pEmpty)]
@@ -31,7 +34,9 @@ withVarIte = Ite (Lit $ LVar "y") SKIP STOP
 withPrefix :: Proc
 withPrefix = Prefix ("in", [Input "x", Input "y"]) $ Prefix ("out", [Output $ Eq (Lit $ LVar "x") (Lit $ LVar "x")]) withVarIte
 
--- let f = \ u : U -> case u of myTrue -> \t : E -> true of myFalse -> \t : E -> false within in?u -> if f u then SKIP else STOP
+-- let f = \ u : U ->
+-- case u of myTrue -> \t : E -> true
+--        of myFalse -> \t : E -> false within in?u -> if f u then SKIP else STOP
 withECaseExpr :: Proc
 withECaseExpr = Let "f" (ELambda "u" (TVar "U") (ECaseExpr (Lit (LVar "u")) [ECase "myFalse" (ELambda "t" (TVar "E") (Lit (LBool False))), ECase "myTrue" (ELambda "t" (TVar "E") (Lit (LBool True)))])) (Prefix ("in", [Input "u"]) (Ite (App (Lit (LVar "f")) (Lit (LVar "u"))) SKIP STOP))
 
@@ -71,3 +76,17 @@ foldEnv =
 
 foldProc :: Proc
 foldProc = Prefix ("asklen", [Input "list"]) (Let "len" (Fold (Lit (LVar "list")) (Lit (LVar "calcLen"))) (Prefix ("retlen", [Output (Lit (LVar "len"))]) SKIP))
+
+parallelEnv :: Env
+parallelEnv =
+  Env
+    { alphabet = TSum [("send", TProd [u, u, TVar "X"]), ("recv", TProd [u, u, TVar "X"])],
+      typeEnv = Map.fromList [("U", u)],
+      procEnv = Map.fromList [("A", Prefix ("send", [Output (Sum "a" (Tuple [])), Output (Sum "b" (Tuple [])), Input "x"]) STOP), ("B", Prefix ("recv", [Output (Sum "b" (Tuple [])), Input "from", Input "m"]) STOP), ("Net", Prefix ("send", [Input "from", Input "to", Input "m"]) (Prefix ("recv", [Output (Lit (LVar "to")), Output (Lit (LVar "from")), Output (Lit (LVar "m"))]) (CallProc "Net" [])))],
+      exprEnv = Map.empty
+    }
+  where
+    u = TSum [("a", TProd []), ("b", TProd []), ("c", TProd [])]
+
+parallelProc :: Proc
+parallelProc = Parallel (Set.fromList [Sum "recv" (Lit (LStar (TProd [TVar "U", TVar "U", TVar "X"]))), Sum "send" (Lit (LStar (TProd [TVar "U", TVar "U", TVar "X"])))]) (Parallel (Set.fromList []) (CallProc "A" []) (CallProc "B" [])) (CallProc "Net" [])

@@ -1,12 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Action, Action' (..), ActionI, ActionI' (..), Construct (..), ECase, ECase' (..), Exp, Exp' (..), Literal (LBool, LInt, LVar), Proc, Proc' (..), Programm, SumT, Type (..))
+import CSPM.Syntax (Action, Action' (..), ActionI, ActionI' (..), Construct (..), ECase, ECase' (..), Exp, Exp'' (..), Literal (LBool, LInt, LVar), Proc, Proc' (..), Programm, SElem, SLiteral (LLit, LStar), SumT, Type (..))
 -- import qualified Data.HashMap.Lazy as Map
 
 -- import qualified Data.HashMap.Lazy as Map
@@ -27,6 +28,7 @@ import Data.Bifunctor (Bifunctor, bimap, first, second)
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import Data.Tuple.Extra (both)
 import Debug.Trace (trace, traceShow)
 import Subsume (Subsume ((|<|)))
@@ -171,7 +173,18 @@ check p = case p of
   Seq pr pr' -> do
     p1Type <- check pr
     check pr'
-  Parallel set pr pr' -> undefined
+  Parallel set pr pr' -> do
+    lhs <- check pr
+    rhs <- check pr'
+    setTy <- checkSet set
+    Env {alphabet} <- ask
+    case lhs of
+      TProc ty
+        | ty |<| alphabet -> case rhs of
+          TProc ty'
+            | ty' |<| alphabet -> return $ TProc alphabet
+          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
+      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
   Hide set pr -> undefined
   ReplIntChoice s set pr -> undefined
   PCaseExpr exp cases -> undefined
@@ -180,22 +193,24 @@ check p = case p of
     expT <- checkExp exp
     addToEnv (var, expT) $ check pr
 
-checkExpHasType :: Exp -> Type -> Check Type
-checkExpHasType exp t = do
-  inferredType <- checkExp exp
-  if inferredType == t
+checkExpHasType' :: (l -> Check Type) -> Exp'' l Type -> Type -> Check Type
+checkExpHasType' chLit exp t = do
+  inferredType <- checkExp' chLit exp
+  if inferredType |<| t
     then return t
     else throwError $ TypeMismatch inferredType t
 
+checkExpHasType = checkExpHasType' checkLit
+
 -- Check Expression for type
-checkExp :: Exp -> Check Type
+checkExp' :: (l -> Check Type) -> Exp'' l Type -> Check Type
 -- checkExp exp | traceShow exp False = undefined
-checkExp exp = case exp of
+checkExp' chLit exp = case exp of
   Eq exp' exp2 -> do
     rhs <- checkExp exp'
     lhs <- checkExp exp2
     if rhs == lhs then return TBool else throwError $ TypeMismatch rhs lhs
-  Lit s -> checkLit s
+  Lit s -> chLit s
   App fun arg -> do
     tfun <- checkExp fun
     targ <- checkExp arg
@@ -217,7 +232,7 @@ checkExp exp = case exp of
     return $ TFun ty retT
   ECaseExpr exp cases -> do
     expT <- checkExp exp
-    checkECase expT cases
+    checkECase chLit expT cases
   Tuple exprs -> do
     typs <- mapM checkExp exprs
     return $ TProd typs
@@ -249,6 +264,23 @@ checkExp exp = case exp of
   MathOp exprs -> do
     mapM_ (`checkExpHasType` TNum) exprs
     return TNum
+  where
+    checkExp = checkExp' chLit
+    checkExpHasType = checkExpHasType' chLit
+
+checkExp :: Exp -> Check Type
+checkExp = checkExp' checkLit
+
+checkSet :: Set.Set SElem -> Check ()
+checkSet = mapM_ checkElem
+
+checkElem :: SElem -> Check Type
+checkElem = checkExp' checkSLit
+  where
+    checkSLit :: SLiteral -> Check Type
+    checkSLit lit = case lit of
+      LLit lit' -> checkLit lit'
+      LStar ty -> return ty
 
 checkLit :: Literal -> Check Type
 checkLit l = case l of
@@ -262,20 +294,20 @@ checkLit l = case l of
       Just nt -> return nt
   LBool b -> return TBool
 
-checkECase :: Type -> [ECase] -> Check Type
-checkECase _ [] = throwError EmptyCase
-checkECase t@(TSum ts) (c : cs) = do
+checkECase :: forall l. (l -> Check Type) -> Type -> [ECase' l Type] -> Check Type
+checkECase _ _ [] = throwError EmptyCase
+checkECase chLit t@(TSum ts) (c : cs) = do
   init <- checkCase c
   foldM foldCase init cs
   where
-    foldCase :: Type -> ECase -> Check Type
+    foldCase :: Type -> ECase' l Type -> Check Type
     foldCase ty cs = do
       ct <- checkCase cs
       if ct == ty then return ty else throwError $ TypeMismatch ty ct
-    checkCase :: ECase -> Check Type
+    checkCase :: ECase' l Type -> Check Type
     checkCase (ECase ident exp)
       | Just ty <- lookup ident ts =
-        checkExp exp
+        checkExp' chLit exp
           >>= ( \case
                   (TFun argT resT)
                     | argT == ty -> return resT
@@ -283,7 +315,7 @@ checkECase t@(TSum ts) (c : cs) = do
                   t -> throwError $ NotFunction t
               )
       | otherwise = throwError $ NotChannel ident t
-checkECase t _ = throwError $ NotSumType t
+checkECase _ t _ = throwError $ NotSumType t
 
 -- Return a user defined type if there exist one
 fitInductiveType :: Type -> Check (Maybe Type)

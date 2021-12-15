@@ -7,6 +7,7 @@ import Data.Bifunctor (second)
 import Data.Char
 import Data.Foldable.Extra (Foldable)
 import Data.Functor (Functor)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 type Programm = [Construct]
@@ -20,13 +21,17 @@ data Construct
   | NamedType String Type
   | NamedExpr String Exp
   | TypeAnnotation String Type
-  | Assert (Set.Set String) String PType
+  | Assert (Map.Map String Type) String PType
   | NamedProc String [(ArgName, TypeName)] Proc
   deriving (Show)
 
 type Proc = Proc' Type
 
-type Exp = Exp' Type
+type Exp = Exp'' Literal Type
+
+type Exp' = Exp'' Literal
+
+type SElem = Exp'' SLiteral Type
 
 data Proc' a
   = STOP
@@ -37,12 +42,12 @@ data Proc' a
   | IntChoice (Proc' a) (Proc' a)
   | Ite (Exp' a) (Proc' a) (Proc' a)
   | Seq (Proc' a) (Proc' a)
-  | Parallel (Set.Set String) (Proc' a) (Proc' a)
-  | Hide (Set.Set String) (Proc' a)
+  | Parallel (Set.Set SElem) (Proc' a) (Proc' a)
+  | Hide (Set.Set SElem) (Proc' a)
   | Let String (Exp' a) (Proc' a)
   | PCaseExpr (Exp' a) [PCase' a]
   | PLambda ArgName a (Proc' a)
-  | ReplIntChoice String (Set.Set String) (Proc' a)
+  | ReplIntChoice String Type (Proc' a)
   deriving (Show, Functor, Foldable)
 
 -- If the Phi type is Nothing, it should be inferred.
@@ -52,28 +57,35 @@ data PType
   = PType String PhiT
   deriving (Show)
 
-data Exp' a
-  = Eq (Exp' a) (Exp' a)
-  | App (Exp' a) (Exp' a)
-  | ELambda ArgName a (Exp' a)
-  | ECaseExpr (Exp' a) [ECase' a]
-  | Lit Literal
-  | Tuple [Exp' a]
-  | Sum String (Exp' a)
-  | Fold (Exp' a) (Exp' a)
-  | MathOp [Exp' a]
-  deriving (Show, Functor, Foldable)
+data Exp'' l a
+  = Eq (Exp'' l a) (Exp'' l a)
+  | App (Exp'' l a) (Exp'' l a)
+  | ELambda ArgName a (Exp'' l a)
+  | ECaseExpr (Exp'' l a) [ECase' l a]
+  | Lit l
+  | Tuple [Exp'' l a]
+  | Sum String (Exp'' l a)
+  | Fold (Exp'' l a) (Exp'' l a)
+  | MathOp [Exp'' l a]
+  deriving (Show, Functor, Foldable, Eq, Ord)
 
 data Literal
   = LInt Int
   | LVar String
   | LBool Bool
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
-type ECase = ECase' Type
+data SLiteral
+  = LLit Literal
+  | LStar Type
+  deriving (Show, Eq, Ord)
 
-data ECase' a = ECase String (Exp' a)
-  deriving (Show, Functor, Foldable)
+type ECase = ECase' Literal Type
+
+type SCase = ECase' SLiteral Type
+
+data ECase' l a = ECase String (Exp'' l a)
+  deriving (Show, Functor, Foldable, Eq, Ord)
 
 type PCase = PCase' Type
 
@@ -107,7 +119,7 @@ data Type
   | TSum [SumT Type]
   | TProd [Type]
   | TVar String
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data TokenClass
   = TokenSkip
