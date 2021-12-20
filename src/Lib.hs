@@ -185,7 +185,15 @@ check p = case p of
             | ty' |<| alphabet -> return $ TProc alphabet
           _ -> throwError $ TypeMismatch rhs (TProc alphabet)
       _ -> throwError $ TypeMismatch lhs (TProc alphabet)
-  Hide set pr -> undefined
+  Hide set pr -> do
+    ptype <- check pr
+    setTy <- checkSet set
+    Env {alphabet} <- ask
+    case ptype of
+      tp@(TProc ty)
+        | ty |<| alphabet -> return tp
+        | otherwise -> throwError $ TypeMismatch ptype tp
+      _ -> throwError $ TypeMismatch ptype (TProc alphabet)
   ReplIntChoice s set pr -> undefined
   PCaseExpr exp cases -> undefined
   PLambda arg typ pr -> undefined
