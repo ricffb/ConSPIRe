@@ -28,6 +28,8 @@ source-repository head
 library
   exposed-modules:
       Lib
+      PrepParsed
+      StdLib
       Subsume
       TypeLib
       Utility
