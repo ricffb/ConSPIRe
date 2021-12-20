@@ -45,6 +45,7 @@ tokens :-
   datatype                              { lex' TokenDataType }
   fold                                  { lex' TokenFold }
   Proc                                  { lex' TokenProc }
+  pr                                    { lex' TokenProject }
   $digit+                               { lex (TokenNum . read) }  
   @var                                  { lex  TokenVar }
   @name                                 { lex  TokenName }
@@ -145,6 +146,7 @@ unLex TokenIn   = "within"
 unLex TokenTrue = "True"
 unLex TokenFalse = "False"
 unLex TokenEOF = "<EOF>"
+unLex TokenProject = "pr"
 
 alexEOF :: Alex Token
 alexEOF = do

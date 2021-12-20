@@ -194,9 +194,16 @@ check p = case p of
         | ty |<| alphabet -> return tp
         | otherwise -> throwError $ TypeMismatch ptype tp
       _ -> throwError $ TypeMismatch ptype (TProc alphabet)
-  ReplIntChoice s set pr -> undefined
-  PCaseExpr exp cases -> undefined
-  PLambda arg typ pr -> undefined
+  PCaseExpr exp cases -> do
+    expT <- checkExp exp
+    checkPCase expT cases
+  PLambda [arg] typ pr -> do
+    prT <- addToEnv (arg, typ) $ check pr
+    return $ TFun typ prT
+  PLambda args typ pr -> do
+    argTs <- matchProd args typ
+    prT <- addToEnv' argTs $ check pr
+    return $ TFun typ prT
   Let var exp pr -> do
     expT <- checkExp exp
     addToEnv (var, expT) $ check pr
@@ -272,6 +279,13 @@ checkExp' chLit exp = case exp of
   MathOp exprs -> do
     mapM_ (`checkExpHasType` TNum) exprs
     return TNum
+  Project i exp
+    | i > 0 -> do
+      ty <- checkExp exp
+      case ty of
+        TProd ts -> if i <= length ts then return $ ts !! (i -1) else throwError $ NotInScope $ "pr " ++ show i ++ " " ++ show ty
+        _ -> throwError $ NotProduct ty
+    | otherwise -> throwError $ NotInScope $ "pr " ++ show i ++ ": " ++ show i ++ "<= 0"
   where
     checkExp = checkExp' chLit
     checkExpHasType = checkExpHasType' chLit

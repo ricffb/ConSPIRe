@@ -33,6 +33,7 @@ import CSPM.Lexer
       within          { Token _ TokenIn }
       true            { Token _ TokenTrue }
       false           { Token _ TokenFalse }
+      pr              { Token _ TokenProject}
       '='             { Token _ TokenEq }
       '=='            { Token _ TokenEquals }
       '!='            { Token _ TokenNotEquals }
@@ -156,12 +157,16 @@ PProc :: {Proc}
       | '(' PProc ')'                   { $2 }
       | let var '=' Exp within PProc        { Let $2 $4 $6 }
       | case Exp PCases                 { PCaseExpr $2 $3 }
-      | '\\' var ':' TypeBody '@' PProc { PLambda $2 $4 $6 }
+      | '\\' Vars ':' TypeBody '@' PProc { PLambda (reverse $2) $4 $6 }
 
 PCases :: { [PCase] }
       : PCases of var '->' PProc       { (PCase $3 $5) : $1 }
       | of var '->' PProc              { [PCase $2 $4] }
 
+Vars :: {[String]}
+      : var {[$1]}
+      : Vars var {$2:$1}
+      : {-empty-} {[]}
 
 Set  ::  { Set.Set SElem }
 Set   : '{' SetCont '}' { Set.fromList $2 }
@@ -180,9 +185,9 @@ VarDecls : VarDecl
 
 VarDecl : var '<-' Type -}
 
-ArgSeq :: { [(String, String)] }
-ArgSeq : ArgSeq ',' var ':' name    { ($3, $5) : $1 }
-       | var ':' name               { [($1, $3)] }
+ArgSeq :: { [(String, Type)] }
+ArgSeq : ArgSeq ',' var ':' TypeBody    { ($3, $5) : $1 }
+       | var ':' TypeBody               { [($1, $3)] }
 
 Seq :: { [String] }
 Seq : Seq ',' var    { $3 : $1 }
@@ -219,6 +224,7 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Exp '/' Exp                 { MathOp [$1, $3] }
       | Exp '/' Exp                 { MathOp [$1, $3] }
       | Exp '!=' Exp                { Eq $1 $3 }
+      | pr number Exp               { Project $2 $3 }
 
 SExp :: { SElem }
 SExp   : SExp '==' SExp             { Eq $1 $3 }

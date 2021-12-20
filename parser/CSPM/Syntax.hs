@@ -14,15 +14,13 @@ type Programm = [Construct]
 
 type ArgName = String
 
-type TypeName = String
-
 data Construct
   = TypeVar String
   | NamedType String Type
   | NamedExpr String Exp
-  | TypeAnnotation String Type
-  | Assert (Map.Map String Type) String PType
-  | NamedProc String [(ArgName, TypeName)] Proc
+  | -- | TypeAnnotation String Type
+    Assert (Map.Map String Type) String PType
+  | NamedProc String [(ArgName, Type)] Proc
   deriving (Show)
 
 type Proc = Proc' Type
@@ -46,7 +44,7 @@ data Proc' a
   | Hide (Set.Set SElem) (Proc' a)
   | Let String (Exp' a) (Proc' a)
   | PCaseExpr (Exp' a) [PCase' a]
-  | PLambda ArgName a (Proc' a)
+  | PLambda [ArgName] a (Proc' a)
   | ReplIntChoice String Type (Proc' a)
   deriving (Show, Functor, Foldable)
 
@@ -67,6 +65,7 @@ data Exp'' l a
   | Sum String (Exp'' l a)
   | Fold (Exp'' l a) (Exp'' l a)
   | MathOp [Exp'' l a]
+  | Project Int (Exp'' l a)
   deriving (Show, Functor, Foldable, Eq, Ord)
 
 data Literal
@@ -170,4 +169,5 @@ data TokenClass
   | TokenProc
   | TokenEOF
   | TokenFold
+  | TokenProject
   deriving (Show)
