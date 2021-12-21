@@ -165,8 +165,8 @@ PCases :: { [PCase] }
 
 Vars :: {[String]}
       : var {[$1]}
-      : Vars var {$2:$1}
-      : {-empty-} {[]}
+      | Vars var {$2:$1}
+      | {-empty-} {[]}
 
 Set  ::  { Set.Set SElem }
 Set   : '{' SetCont '}' { Set.fromList $2 }
