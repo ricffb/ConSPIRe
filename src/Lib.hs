@@ -1,7 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 
 module Lib where
@@ -20,17 +19,20 @@ import Control.Monad.Except
 import Control.Monad.Reader
   ( MonadReader (ask, local),
     Reader,
+    asks,
+    lift,
     runReader,
   )
 import Control.Monad.State (State)
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bifunctor (Bifunctor, bimap, first, second)
+import Data.Foldable (Foldable (foldl'))
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Tuple.Extra (both)
-import Debug.Trace (trace, traceShow)
+import Debug.Trace (trace, traceShow, traceShowId)
 import Subsume (Subsume ((|<|)))
 import Text.Show (Show)
 import TypeLib (mapVar, resolve, (</))
@@ -49,8 +51,23 @@ data TypeError
   | NotProduct Type
   | NotInductive Type
   | EmptyCase
+  | Generic String
   | TooManyValues [String] Type
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show TypeError where
+  show err = case err of
+    TypeMismatch t1 t2 -> "Error TypeMismatch: expected type\n" ++ show t1 ++ "\n could not be matched with actual type\n" ++ show t2
+    NotFunction ty -> "Error Not a Function: Expected a function type but got: " ++ show ty
+    NotInScope s -> "Error Not in Scope: Symbol " ++ s ++ " was not in scope."
+    NotExpression s -> "Error Not an Expression: Expected " ++ s ++ " to be an expression."
+    NotChannel s ty -> "Error Not a Channel: Expected \"" ++ s ++ "\" to be a channel of " ++ show ty
+    NotSumType ty -> "Error Not a Sum Type: Expected " ++ show ty ++ " to be a sum type."
+    NotProduct ty -> "Error Not a Product Type: Expected " ++ show ty ++ " to be a product type."
+    NotInductive ty -> "Error Not an inductive Type: Expected " ++ show ty ++ " to be inductive."
+    EmptyCase -> "Error: "
+    Generic s -> "Error: " ++ s
+    TooManyValues ss ty -> "Error Too many values to unpack for type " ++ show ty ++ ": " ++ show ss
 
 pEmpty :: Type
 pEmpty = TProd []
@@ -64,6 +81,7 @@ data Env = Env
     exprEnv :: Map.Map String Exp,
     alphabet :: Type
   }
+  deriving (Show)
 
 emptyEnv :: Env
 emptyEnv = Env {alphabet = TSum [], typeEnv = Map.empty, procEnv = Map.empty, exprEnv = Map.empty}
@@ -89,16 +107,16 @@ findTypesOfChannel (chan, items) = do
     matchItems :: Type -> [ActionI] -> Check ([(Exp, Type)], [(String, Type)])
     matchItems t@(TProd typs) actions =
       if length typs /= length actions
-        then throwError $ NotChannel ("The number of Arguments is different" ++ show actions) t
-        else return (foldl (flip (flip addT . bifoldMap (,[]) ([],))) ([], []) (zipWith extractNames actions typs))
+        then throwError $ Generic $ "The number of Arguments for type " ++ show t ++ " is different: " ++ show actions
+        else return $ foldl' addT ([], []) (zipWith extractNames actions typs)
     matchItems t [a] = case a of
       Output s -> return ([(s, t)], [])
       Input s -> return ([], [(s, t)])
       Selection s -> return ([], [(s, t)])
     matchItems _ _ = undefined
-    extractNames (Input x) t = Right [(x, t)]
-    extractNames (Output x) t = Left [(x, t)]
-    extractNames (Selection x) t = Right [(x, t)]
+    extractNames (Input x) t = ([], [(x, t)])
+    extractNames (Output x) t = ([(x, t)], [])
+    extractNames (Selection x) t = ([], [(x, t)])
 
 addT :: (Monoid m, Monoid n) => (m, n) -> (m, n) -> (m, n)
 addT (a, x) (b, y) = (a <> b, x <> y)
@@ -141,19 +159,35 @@ check p = case p of
         Nothing -> throwError $ NotInScope process
         Just pr -> addToEnv (process, TProc alphabet) $ check pr
   --
-  CallProc process args -> do
+  CallProc process [arg] -> do
     Env {alphabet, procEnv, typeEnv} <- ask
-    argTypes <- TProd <$> mapM (typeEnv !!?) args
+    argT <- typeEnv !!? arg
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argTypes |<| fargT then return prT else throwError $ TypeMismatch fargT argTypes
+      Just (TFun fargT prT) -> if argT |<| fargT then return prT else throwError $ TypeMismatch fargT argT
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
-          prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
+          prT <- addToEnv (process, TFun argT (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argTypes |<| fargT' then return prT' else throwError $ TypeMismatch fargT' argTypes
+            (TFun fargT' prT') -> if argT |<| fargT' then return prT' else throwError $ TypeMismatch fargT' argT
             pr' -> throwError $ NotFunction pr'
+  --
+  CallProc process args
+    | traceShow (process, args) False -> undefined
+    | otherwise -> do
+      Env {alphabet, procEnv, typeEnv} <- ask
+      argTypes <- TProd <$> mapM (typeEnv !!?) args
+      case typeEnv !? process of
+        Just (TFun fargT prT) -> if argTypes |<| fargT then return prT else throwError $ TypeMismatch fargT argTypes
+        Just pr -> throwError $ NotFunction pr
+        Nothing -> case procEnv !? process of
+          Nothing -> throwError $ NotInScope process
+          Just pr -> do
+            prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
+            case prT of
+              (TFun fargT' prT') -> if argTypes |<| fargT' then return prT' else throwError $ TypeMismatch fargT' argTypes
+              pr' -> throwError $ NotFunction pr'
   --
   Prefix action pr -> do
     (outputs, vars) <- findTypesOfChannel action
