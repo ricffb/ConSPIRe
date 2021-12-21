@@ -3,12 +3,15 @@
 
 module CSPM.Syntax where
 
+import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bifunctor (second)
 import Data.Char
+import Data.Foldable (foldl')
 import Data.Foldable.Extra (Foldable)
 import Data.Functor (Functor)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Debug.Trace (trace)
 
 type Programm = [Construct]
 
@@ -118,7 +121,31 @@ data Type
   | TSum [SumT Type]
   | TProd [Type]
   | TVar String
-  deriving (Show, Eq, Ord)
+  deriving (Ord)
+
+instance Eq Type where
+  (TProc lhs) == (TProc rhs) = lhs == rhs
+  (TFun lhsa lhsi) == (TFun rhsa rhsi) = lhsa == rhsa && lhsi == rhsi
+  (TInd ls lhs) == (TInd rs rhs) = ls == rs && lhs == rhs
+  TNum == TNum = True
+  TBool == TBool = True
+  (TVar s) == (TVar r) = s == r
+  (TProd lts) == (TProd rts) = and $ zipWith (==) lts rts
+  (TSum lts) == (TSum rts) = and $ zipWith (\(c1, t1) (c2, t2) -> c1 == c2 && t1 == t2) lts rts
+  _ == _ = False
+
+instance Show Type where
+  show ty = case ty of
+    TProc ty' -> "Proc(" ++ show ty' ++ ")"
+    TFun ty' ty2 -> show ty' ++ " -> " ++ show ty2
+    TInd s ty' -> "\\" ++ s ++ " -> " ++ show ty'
+    TNum -> "Int"
+    TBool -> "Bool"
+    TSum [] -> "{}"
+    TSum ((ch0, ty0) : xs) -> "(" ++ foldl' (\acc (ch, ty) -> acc ++ " | " ++ ch ++ "." ++ show ty) (ch0 ++ "." ++ show ty0) xs ++ ")"
+    TProd [] -> "()"
+    TProd (x : xs) -> "(" ++ foldl' (\acc ty -> acc ++ "." ++ show ty) (show x) xs ++ ")"
+    TVar s -> s
 
 data TokenClass
   = TokenSkip
