@@ -14,4 +14,6 @@ P = let f = \ u : U -> pr 1 u == pr 2 u within in?x?y
 Q = asklen?list -> let len = fold list calcLen within retlen!len -> SKIP
 
 calcLen = \xs : nil.() | cons.Bool.Int -> case xs of nil -> \y : () -> 0 
-                                                  of cons -> \tpl : Bool.Int -> 1 + snd tpl
+                                                  of cons -> \tpl : Bool.Int -> 1 + pr 2 tpl
+
+assert {} |- Q : Proc(Len)
