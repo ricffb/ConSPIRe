@@ -142,7 +142,7 @@ instance Show Type where
     TNum -> "Int"
     TBool -> "Bool"
     TSum [] -> "{}"
-    TSum ((ch0, ty0) : xs) -> "(" ++ foldl' (\acc (ch, ty) -> acc ++ " | " ++ ch ++ "." ++ show ty) (ch0 ++ "." ++ show ty0) xs ++ ")"
+    TSum ((ch0, ty0) : xs) -> "{" ++ foldl' (\acc (ch, ty) -> acc ++ " | " ++ ch ++ "." ++ show ty) (ch0 ++ "." ++ show ty0) xs ++ "}"
     TProd [] -> "()"
     TProd (x : xs) -> "(" ++ foldl' (\acc ty -> acc ++ "." ++ show ty) (show x) xs ++ ")"
     TVar s -> s
