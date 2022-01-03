@@ -10,6 +10,7 @@ class Subsume a where
   (|<|) :: a -> a -> Bool
 
 instance Subsume Type where
+  ty |<| ty' | ty == ty' = True
   ty |<| i@(TInd var ty') = ty |<| (ty' </ var $ i)
   (TSum sts) |<| (TSum sts') = foldr foldSubsume True sts
     where
