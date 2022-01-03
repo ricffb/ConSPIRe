@@ -32,7 +32,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Tuple.Extra (both)
-import Debug.Trace (trace, traceShow, traceShowId)
+import Debug.Trace (trace, traceShow, traceShowId, traceShowM)
 import Subsume (Subsume ((|<|)))
 import Text.Show (Show)
 import TypeLib (mapVar, resolve, (</))
@@ -42,7 +42,7 @@ someFunc :: IO ()
 someFunc = putStrLn "someFunc"
 
 data TypeError
-  = TypeMismatch Type Type
+  = TypeMismatch String Type Type
   | NotFunction Type
   | NotInScope String
   | NotExpression String
@@ -50,6 +50,7 @@ data TypeError
   | NotSumType Type
   | NotProduct Type
   | NotInductive Type
+  | NotProcess Type
   | EmptyCase
   | Generic String
   | TooManyValues [String] Type
@@ -57,7 +58,7 @@ data TypeError
 
 instance Show TypeError where
   show err = case err of
-    TypeMismatch t1 t2 -> "Error TypeMismatch: expected type\n" ++ show t1 ++ "\n could not be matched with actual type\n" ++ show t2
+    TypeMismatch loc t1 t2 -> "Error TypeMismatch in " ++ loc ++ ": expected type\n" ++ show t1 ++ "\n could not be matched with actual type\n" ++ show t2
     NotFunction ty -> "Error Not a Function: Expected a function type but got: " ++ show ty
     NotInScope s -> "Error Not in Scope: Symbol " ++ s ++ " was not in scope."
     NotExpression s -> "Error Not an Expression: Expected " ++ s ++ " to be an expression."
@@ -65,6 +66,7 @@ instance Show TypeError where
     NotSumType ty -> "Error Not a Sum Type: Expected " ++ show ty ++ " to be a sum type."
     NotProduct ty -> "Error Not a Product Type: Expected " ++ show ty ++ " to be a product type."
     NotInductive ty -> "Error Not an inductive Type: Expected " ++ show ty ++ " to be inductive."
+    NotProcess ty -> "Error Not a process Type: Expected " ++ show ty ++ " to be a process."
     EmptyCase -> "Error: "
     Generic s -> "Error: " ++ s
     TooManyValues ss ty -> "Error Too many values to unpack for type " ++ show ty ++ ": " ++ show ss
@@ -133,13 +135,24 @@ satTcomm typ = case typ of
   TProd tys -> all satTcomm tys
   TVar s -> True
 
+compareProcs :: String -> Type -> Type -> Type -> Check Type
+compareProcs msg lhs rhs alphabet = case lhs of
+  TProc ty
+    | ty |<| alphabet -> case rhs of
+      TProc ty'
+        | ty' |<| alphabet -> return $ TProc alphabet
+        | otherwise -> throwError $ TypeMismatch ("alphabet of " ++ msg ++ " rhs") alphabet ty'
+      _ -> throwError $ NotProcess rhs
+    | otherwise -> throwError $ TypeMismatch ("alphabet of " ++ msg ++ " lhs") alphabet ty
+  _ -> throwError $ NotProcess lhs
+
 (!!?) :: Map.Map String v -> String -> Check v
 map !!? k = case map !? k of
   Nothing -> throwError $ NotInScope k
   Just v -> return v
 
 (|<!|) :: Type -> Type -> Check ()
-s |<!| t = if s |<| t then return () else throwError $ TypeMismatch s t
+s |<!| t = if s |<| t then return () else throwError $ TypeMismatch "PCase" s t
 
 check :: Proc -> Check Type
 check p = case p of
@@ -163,31 +176,29 @@ check p = case p of
     Env {alphabet, procEnv, typeEnv} <- ask
     argT <- typeEnv !!? arg
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argT |<| fargT then return prT else throwError $ TypeMismatch fargT argT
+      Just (TFun fargT prT) -> if argT |<| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argT
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
           prT <- addToEnv (process, TFun argT (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argT |<| fargT' then return prT' else throwError $ TypeMismatch fargT' argT
+            (TFun fargT' prT') -> if argT |<| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argT
             pr' -> throwError $ NotFunction pr'
   --
-  CallProc process args
-    | traceShow (process, args) False -> undefined
-    | otherwise -> do
-      Env {alphabet, procEnv, typeEnv} <- ask
-      argTypes <- TProd <$> mapM (typeEnv !!?) args
-      case typeEnv !? process of
-        Just (TFun fargT prT) -> if argTypes |<| fargT then return prT else throwError $ TypeMismatch fargT argTypes
-        Just pr -> throwError $ NotFunction pr
-        Nothing -> case procEnv !? process of
-          Nothing -> throwError $ NotInScope process
-          Just pr -> do
-            prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
-            case prT of
-              (TFun fargT' prT') -> if argTypes |<| fargT' then return prT' else throwError $ TypeMismatch fargT' argTypes
-              pr' -> throwError $ NotFunction pr'
+  CallProc process args -> do
+    Env {alphabet, procEnv, typeEnv} <- ask
+    argTypes <- TProd <$> mapM (typeEnv !!?) args
+    case typeEnv !? process of
+      Just (TFun fargT prT) -> if argTypes |<| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argTypes
+      Just pr -> throwError $ NotFunction pr
+      Nothing -> case procEnv !? process of
+        Nothing -> throwError $ NotInScope process
+        Just pr -> do
+          prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
+          case prT of
+            (TFun fargT' prT') -> if argTypes |<| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argTypes
+            pr' -> throwError $ NotFunction pr'
   --
   Prefix action pr -> do
     (outputs, vars) <- findTypesOfChannel action
@@ -198,38 +209,20 @@ check p = case p of
     lhs <- check pleft
     rhs <- check pright
     Env {alphabet} <- ask
-    case lhs of
-      TProc ty
-        | ty |<| alphabet -> case rhs of
-          TProc ty'
-            | ty' |<| alphabet -> return $ TProc alphabet
-          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
-      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
+    compareProcs "external choice" lhs rhs alphabet
   --
   IntChoice pleft pright -> do
     lhs <- check pleft
     rhs <- check pright
     Env {alphabet} <- ask
-    case lhs of
-      TProc ty
-        | ty |<| alphabet -> case rhs of
-          TProc ty'
-            | ty' |<| alphabet -> return $ TProc alphabet
-          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
-      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
+    compareProcs "internal choice" lhs rhs alphabet
   --
   Ite exp pleft pright -> do
     et <- checkExpHasType exp TBool
     lhs <- check pleft
     rhs <- check pright
     Env {alphabet} <- ask
-    case lhs of
-      TProc ty
-        | ty |<| alphabet -> case rhs of
-          TProc ty'
-            | ty' |<| alphabet -> return $ TProc alphabet
-          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
-      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
+    compareProcs "if-then-else" lhs rhs alphabet
   --
   Seq pr pr' -> do
     p1Type <- check pr
@@ -239,30 +232,24 @@ check p = case p of
     rhs <- check pr'
     setTy <- checkSet set
     Env {alphabet} <- ask
-    case lhs of
-      TProc ty
-        | ty |<| alphabet -> case rhs of
-          TProc ty'
-            | ty' |<| alphabet -> return $ TProc alphabet
-          _ -> throwError $ TypeMismatch rhs (TProc alphabet)
-      _ -> throwError $ TypeMismatch lhs (TProc alphabet)
+    compareProcs "parallel" lhs rhs alphabet
   Hide set pr -> do
     ptype <- check pr
     setTy <- checkSet set
     Env {alphabet} <- ask
     case ptype of
-      tp@(TProc ty)
-        | ty |<| alphabet -> return tp
-        | otherwise -> throwError $ TypeMismatch ptype tp
-      _ -> throwError $ TypeMismatch ptype (TProc alphabet)
+      (TProc ty)
+        | ty |<| alphabet -> return ptype
+        | otherwise -> throwError $ TypeMismatch "hide alphabet" alphabet ty
+      _ -> throwError $ NotProcess ptype
   ReplIntChoice s typ pr -> do
-    ptype <- addToEnv (s, typ) $ check pr
-    Env {alphabet} <- ask
+    Env {alphabet, typeEnv} <- ask
+    ptype <- addToEnv (s, resolve typeEnv typ) $ check pr
     case ptype of
-      tp@(TProc ty)
-        | ty |<| alphabet -> return tp
-        | otherwise -> throwError $ TypeMismatch ptype tp
-      _ -> throwError $ TypeMismatch ptype (TProc alphabet)
+      (TProc ty)
+        | ty |<| alphabet -> return (TProc alphabet)
+        | otherwise -> throwError $ TypeMismatch "replicated internal alphabet" alphabet ty
+      _ -> throwError $ NotProcess ptype
   PCaseExpr exp cases -> do
     expT <- checkExp exp
     checkPCase expT cases
@@ -320,7 +307,7 @@ checkExpHasType' chLit exp t = do
   inferredType <- checkExp' chLit exp
   if inferredType |<| t
     then return t
-    else throwError $ TypeMismatch inferredType t
+    else throwError $ TypeMismatch "check exp has type" inferredType t
 
 checkExpHasType = checkExpHasType' checkLit
 
@@ -331,13 +318,13 @@ checkExp' chLit exp = case exp of
   Eq exp' exp2 -> do
     rhs <- checkExp exp'
     lhs <- checkExp exp2
-    if rhs == lhs then return TBool else throwError $ TypeMismatch rhs lhs
+    if rhs == lhs then return TBool else throwError $ TypeMismatch "==" rhs lhs
   Lit s -> chLit s
   App fun arg -> do
     tfun <- checkExp fun
     targ <- checkExp arg
     case tfun of
-      TFun argT retT -> if targ |<| argT then return retT else throwError $ TypeMismatch argT targ
+      TFun argT retT -> if targ |<| argT then return retT else throwError $ TypeMismatch "fun application" argT targ
       _ -> throwError $ NotFunction tfun
   ELambda argname t@(TVar typename) expr -> do
     env <- ask
@@ -380,7 +367,7 @@ checkExp' chLit exp = case exp of
             let tu = (t </ var $ img)
              in if dom |<| tu
                   then return img
-                  else throwError $ TypeMismatch tu dom
+                  else throwError $ TypeMismatch "fold" tu dom
           _ -> throwError $ NotFunction funT
       _ -> undefined
   MathOp exprs -> do
@@ -409,7 +396,9 @@ checkElem = checkExp' checkSLit
     checkSLit :: SLiteral -> Check Type
     checkSLit lit = case lit of
       LLit lit' -> checkLit lit'
-      LStar ty -> return ty
+      LStar ty -> do
+        Env {typeEnv} <- ask
+        return $ resolve typeEnv ty
 
 checkLit :: Literal -> Check Type
 checkLit l = case l of
@@ -432,18 +421,21 @@ checkECase chLit t@(TSum ts) (c : cs) = do
     foldCase :: Type -> ECase' l Type -> Check Type
     foldCase ty cs = do
       ct <- checkCase cs
-      if ct == ty then return ty else throwError $ TypeMismatch ty ct
+      typeMerge ct ty
     checkCase :: ECase' l Type -> Check Type
     checkCase (ECase ident exp)
       | Just ty <- lookup ident ts =
         checkExp' chLit exp
           >>= ( \case
                   (TFun argT resT)
-                    | argT == ty -> return resT
-                    | otherwise -> throwError $ TypeMismatch ty argT
+                    | argT |<| ty -> return resT
+                    | otherwise -> throwError $ TypeMismatch ("exp case (" ++ ident ++ ")") ty argT
                   t -> throwError $ NotFunction t
               )
       | otherwise = throwError $ NotChannel ident t
+    typeMerge :: Type -> Type -> Check Type
+    typeMerge (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
+    typeMerge x y = if x |<| y then return y else throwError $ TypeMismatch "exp case return" x y
 checkECase _ t _ = throwError $ NotSumType t
 
 -- Return a user defined type if there exist one
