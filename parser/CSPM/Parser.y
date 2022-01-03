@@ -87,14 +87,14 @@ Programm : RProgramm { reverse $1 }
 
 RProgramm :: { Programm }
 RProgramm : RProgramm Construct {$2 : $1}
-      | Construct       {[$1]}
+      | Construct    {[$1]}
       | {- empty -}     {[]}
 
 Construct :: { Construct }
 Construct   : Typedecl    {$1}
             | Assertion   {$1}
             | P_Assign    {$1}
-            | ExprDecl     {$1}
+            | ExprDecl ';'    {$1}
 
 Typedecl :: { Construct }
 Typedecl    : typevar name { TypeVar $2 }
@@ -211,11 +211,12 @@ Exp :: {Exp}
 Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Lit                         { Lit $1 }
    -- | Pattern                     { Pattern $1 }
+      | '(' ExpSeq ')'              { Tuple $ reverse $2 }
       | '(' Exp ')'                 { $2 }
+      | '(' ')'                     { Tuple [] }
       | Exp Exp %prec APP           { App $1 $2 }
       | '\\' var ':' TypeBody '->' Exp  { ELambda $2 $4 $6 }
       | case Exp Cases              { ECaseExpr $2 $3 }
-      | '(' ExpSeq ')'              { Tuple $ reverse $2 }
       | var '.' Exp                 { Sum $1 $3 }
       | fold Exp Exp                { Fold $2 $3 }
       | Exp '+' Exp                 { MathOp [$1, $3] }
@@ -234,6 +235,7 @@ SExp   : SExp '==' SExp             { Eq $1 $3 }
       | '\\' var ':' TypeBody '->' SExp  { ELambda $2 $4 $6 }
       | case SExp SCases              { ECaseExpr $2 $3 }
       | '(' SExpSeq ')'              { Tuple $ reverse $2 }
+      | '(' ')'                     { Tuple [] }
       | var '.' SExp                 { Sum $1 $3 }
       | fold SExp SExp                { Fold $2 $3 }
       | SExp '+' SExp                 { MathOp [$1, $3] }
@@ -264,16 +266,11 @@ SLit :: { SLiteral }
 
 ExpSeq : ExpSeq ',' Exp  { $3 : $1 }
        | Exp ',' Exp     { [$3, $1]} 
-       | {[]}
+
 
 Cases :: { [ECase] }
-      : Cases of var '->' Exp       { (ECase $3 $5) : $1 }
-      | of var '->' Exp             { [ECase $2 $4] }
-
--- Match a channel Pattern
-Pattern : var                 { PVar $1 }
-        | Pattern '.' Pattern { PDot $1 $3 }
-
+      : Cases of var '->' Exp      { (ECase $3 $5) : $1 }
+      | of var '->' Exp            { [ECase $2 $4] }
 
 {
 lexwrap :: (Token -> Alex a) -> Alex a
