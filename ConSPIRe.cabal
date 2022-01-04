@@ -4,11 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           cspire
+name:           ConSPIRe
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/cspire#readme>
-homepage:       https://github.com/ricffb/cspire#readme
-bug-reports:    https://github.com/ricffb/cspire/issues
+homepage:       https://github.com/ricffb/conspire#readme
+bug-reports:    https://github.com/ricffb/conspire/issues
 author:         Henrik Wachowitz
 maintainer:     henrik.wachowitz@tum.de
 copyright:      2021 Henrik Wachowitz
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/ricffb/cspire
+  location: https://github.com/ricffb/conspire
 
 library
   exposed-modules:
@@ -37,7 +37,7 @@ library
       CSPM.Parser
       CSPM.Syntax
   other-modules:
-      Paths_cspire
+      Paths_ConSPIRe
   hs-source-dirs:
       src
       parser
@@ -55,10 +55,10 @@ library
     , unordered-containers ==0.2.15.0
   default-language: Haskell2010
 
-executable cspire-exe
+executable cspir
   main-is: Main.hs
   other-modules:
-      Paths_cspire
+      Paths_ConSPIRe
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -67,10 +67,10 @@ executable cspire-exe
     , happy
   build-depends:
       CSPM-Frontend ==0.12.1.1
+    , ConSPIRe
     , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
-    , cspire
     , extra ==1.7.10
     , mtl
     , transformers ==0.5.6.2
@@ -81,7 +81,7 @@ test-suite cspire-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_cspire
+      Paths_ConSPIRe
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -90,10 +90,10 @@ test-suite cspire-test
     , happy
   build-depends:
       CSPM-Frontend ==0.12.1.1
+    , ConSPIRe
     , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
-    , cspire
     , extra ==1.7.10
     , hspec
     , mtl

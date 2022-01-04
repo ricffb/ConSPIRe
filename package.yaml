@@ -1,6 +1,6 @@
-name: cspire
+name: ConSPIRe
 version: 0.1.0.0
-github: "ricffb/cspire"
+github: "ricffb/conspire"
 license: BSD3
 author: "Henrik Wachowitz"
 maintainer: "henrik.wachowitz@tum.de"
@@ -41,7 +41,7 @@ library:
     - parser
 
 executables:
-  cspire-exe:
+  cspir:
     main: Main.hs
     source-dirs: app
     ghc-options:
@@ -49,7 +49,7 @@ executables:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - cspire
+      - ConSPIRe
 
 tests:
   cspire-test:
@@ -60,5 +60,5 @@ tests:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - cspire
+      - ConSPIRe
       - hspec
