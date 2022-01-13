@@ -45,8 +45,7 @@ library
       alex
     , happy
   build-depends:
-      CSPM-Frontend ==0.12.1.1
-    , array >=0.5.4
+      array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
     , extra ==1.7.10
@@ -66,8 +65,7 @@ executable cspir
       alex
     , happy
   build-depends:
-      CSPM-Frontend ==0.12.1.1
-    , ConSPIRe
+      ConSPIRe
     , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6
@@ -89,8 +87,7 @@ test-suite cspire-test
       alex
     , happy
   build-depends:
-      CSPM-Frontend ==0.12.1.1
-    , ConSPIRe
+      ConSPIRe
     , array >=0.5.4
     , base >=4.7 && <5
     , containers >=0.6

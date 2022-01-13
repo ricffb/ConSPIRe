@@ -41,10 +41,6 @@ allow-newer: true
 # flags: {}
 
 extra-deps:
-  - git: git@github.com:MarcFontaine/cspm.git
-    commit: 3e4d876dda3d0cdb32f9c3e0ae553a4ae2a4b09e
-    subdirs:
-      - CSPM-Frontend
 # Extra package databases containing global packages
 # extra-package-dbs: []
 

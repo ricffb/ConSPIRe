@@ -3,20 +3,7 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
-- completed:
-    subdir: CSPM-Frontend
-    name: CSPM-Frontend
-    version: 0.12.1.1
-    git: git@github.com:MarcFontaine/cspm.git
-    pantry-tree:
-      size: 1488
-      sha256: 06c3325df53f1107a8738d1890835327679ad58e9431bb86249a505182b60973
-    commit: 3e4d876dda3d0cdb32f9c3e0ae553a4ae2a4b09e
-  original:
-    subdir: CSPM-Frontend
-    git: git@github.com:MarcFontaine/cspm.git
-    commit: 3e4d876dda3d0cdb32f9c3e0ae553a4ae2a4b09e
+packages: []
 snapshots:
 - completed:
     size: 586286

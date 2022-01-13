@@ -223,7 +223,6 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Exp '-' Exp                 { MathOp [$1, $3] }
       | Exp '*' Exp                 { MathOp [$1, $3] }
       | Exp '/' Exp                 { MathOp [$1, $3] }
-      | Exp '/' Exp                 { MathOp [$1, $3] }
       | Exp '!=' Exp                { Eq $1 $3 }
       | pr number Exp               { Project $2 $3 }
 
@@ -241,7 +240,6 @@ SExp   : SExp '==' SExp             { Eq $1 $3 }
       | SExp '+' SExp                 { MathOp [$1, $3] }
       | SExp '-' SExp                 { MathOp [$1, $3] }
       | SExp '*' SExp                 { MathOp [$1, $3] }
-      | SExp '/' SExp                 { MathOp [$1, $3] }
       | SExp '/' SExp                 { MathOp [$1, $3] }
       | SExp '!=' SExp                { Eq $1 $3 }
 

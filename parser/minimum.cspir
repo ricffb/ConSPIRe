@@ -1,6 +1,4 @@
-
 typevar X
-
 datatype T = in.X | out.X
 
 NondReg = in?x -> NondReg'(x)
@@ -9,5 +7,4 @@ NondReg'(x : X) = (in?y -> if x==y then NondReg'(x) else NondReg'(x) |~| NondReg
             []
               (out!x -> NondReg'(x))
 
--- assert that NondReg is a Lazic Process
 assert {} |- NondReg : Proc(T)

@@ -33,7 +33,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Tuple.Extra (both)
 import Debug.Trace (trace, traceShow, traceShowId, traceShowM)
-import Subsume (Subsume ((|<|)))
+import Subsume (Subsume ((<|)))
 import Text.Show (Show)
 import TypeLib (mapVar, resolve, (</))
 import Utility (safeHead)
@@ -138,9 +138,9 @@ satTcomm typ = case typ of
 compareProcs :: String -> Type -> Type -> Type -> Check Type
 compareProcs msg lhs rhs alphabet = case lhs of
   TProc ty
-    | ty |<| alphabet -> case rhs of
+    | ty <| alphabet -> case rhs of
       TProc ty'
-        | ty' |<| alphabet -> return $ TProc alphabet
+        | ty' <| alphabet -> return $ TProc alphabet
         | otherwise -> throwError $ TypeMismatch ("alphabet of " ++ msg ++ " rhs") alphabet ty'
       _ -> throwError $ NotProcess rhs
     | otherwise -> throwError $ TypeMismatch ("alphabet of " ++ msg ++ " lhs") alphabet ty
@@ -151,8 +151,8 @@ map !!? k = case map !? k of
   Nothing -> throwError $ NotInScope k
   Just v -> return v
 
-(|<!|) :: Type -> Type -> Check ()
-s |<!| t = if s |<| t then return () else throwError $ TypeMismatch "PCase" s t
+(<!|) :: Type -> Type -> Check ()
+s <!| t = if s <| t then return () else throwError $ TypeMismatch "PCase" s t
 
 check :: Proc -> Check Type
 check p = case p of
@@ -176,28 +176,28 @@ check p = case p of
     Env {alphabet, procEnv, typeEnv} <- ask
     argT <- typeEnv !!? arg
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argT |<| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argT
+      Just (TFun fargT prT) -> if argT <| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argT
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
           prT <- addToEnv (process, TFun argT (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argT |<| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argT
+            (TFun fargT' prT') -> if argT <| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argT
             pr' -> throwError $ NotFunction pr'
   --
   CallProc process args -> do
     Env {alphabet, procEnv, typeEnv} <- ask
     argTypes <- TProd <$> mapM (typeEnv !!?) args
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argTypes |<| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argTypes
+      Just (TFun fargT prT) -> if argTypes <| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argTypes
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
           prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argTypes |<| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argTypes
+            (TFun fargT' prT') -> if argTypes <| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argTypes
             pr' -> throwError $ NotFunction pr'
   --
   Prefix action pr -> do
@@ -209,7 +209,11 @@ check p = case p of
     lhs <- check pleft
     rhs <- check pright
     Env {alphabet} <- ask
-    compareProcs "external choice" lhs rhs alphabet
+    compareProcs
+      "external choice"
+      lhs
+      rhs
+      alphabet
   --
   IntChoice pleft pright -> do
     lhs <- check pleft
@@ -239,7 +243,7 @@ check p = case p of
     Env {alphabet} <- ask
     case ptype of
       (TProc ty)
-        | ty |<| alphabet -> return ptype
+        | ty <| alphabet -> return ptype
         | otherwise -> throwError $ TypeMismatch "hide alphabet" alphabet ty
       _ -> throwError $ NotProcess ptype
   ReplIntChoice s typ pr -> do
@@ -247,7 +251,7 @@ check p = case p of
     ptype <- addToEnv (s, resolve typeEnv typ) $ check pr
     case ptype of
       (TProc ty)
-        | ty |<| alphabet -> return (TProc alphabet)
+        | ty <| alphabet -> return (TProc alphabet)
         | otherwise -> throwError $ TypeMismatch "replicated internal alphabet" alphabet ty
       _ -> throwError $ NotProcess ptype
   PCaseExpr exp cases -> do
@@ -297,15 +301,15 @@ checkPCase t@(TSum sums) cases = do
           case prT of
             TFun argT (TProc alph) -> do
               Env {alphabet} <- ask
-              ty |<!| argT
-              alph |<!| alphabet
+              ty <!| argT
+              alph <!| alphabet
             _ -> throwError $ NotFunction prT
 checkPCase ty _ = throwError $ NotSumType ty
 
 checkExpHasType' :: (l -> Check Type) -> Exp'' l Type -> Type -> Check Type
 checkExpHasType' chLit exp t = do
   inferredType <- checkExp' chLit exp
-  if inferredType |<| t
+  if inferredType <| t
     then return t
     else throwError $ TypeMismatch "check exp has type" inferredType t
 
@@ -324,7 +328,7 @@ checkExp' chLit exp = case exp of
     tfun <- checkExp fun
     targ <- checkExp arg
     case tfun of
-      TFun argT retT -> if targ |<| argT then return retT else throwError $ TypeMismatch "fun application" argT targ
+      TFun argT retT -> if targ <| argT then return retT else throwError $ TypeMismatch "fun application" argT targ
       _ -> throwError $ NotFunction tfun
   ELambda argname t@(TVar typename) expr -> do
     env <- ask
@@ -365,7 +369,7 @@ checkExp' chLit exp = case exp of
         case funT of
           TFun dom img ->
             let tu = (t </ var $ img)
-             in if dom |<| tu
+             in if dom <| tu
                   then return img
                   else throwError $ TypeMismatch "fold" tu dom
           _ -> throwError $ NotFunction funT
@@ -428,14 +432,14 @@ checkECase chLit t@(TSum ts) (c : cs) = do
         checkExp' chLit exp
           >>= ( \case
                   (TFun argT resT)
-                    | argT |<| ty -> return resT
+                    | argT <| ty -> return resT
                     | otherwise -> throwError $ TypeMismatch ("exp case (" ++ ident ++ ")") ty argT
                   t -> throwError $ NotFunction t
               )
       | otherwise = throwError $ NotChannel ident t
     typeMerge :: Type -> Type -> Check Type
     typeMerge (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
-    typeMerge x y = if x |<| y then return y else throwError $ TypeMismatch "exp case return" x y
+    typeMerge x y = if x <| y then return y else throwError $ TypeMismatch "exp case return" x y
 checkECase _ t _ = throwError $ NotSumType t
 
 -- Return a user defined type if there exist one
@@ -443,7 +447,7 @@ fitInductiveType :: Type -> Check (Maybe Type)
 fitInductiveType ty@(TInd _ _) = return $ Just ty
 fitInductiveType ty = do
   Env {typeEnv} <- ask
-  return $ safeHead [ty' | ty'@(TInd _ _) <- Map.elems typeEnv, ty |<| ty']
+  return $ safeHead [ty' | ty'@(TInd _ _) <- Map.elems typeEnv, ty <| ty']
 
 expand :: Env -> Proc -> Proc
 expand Env {typeEnv} = fmap (resolve typeEnv)
