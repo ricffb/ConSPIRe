@@ -1,0 +1,10 @@
+datatype MyList = \L -> nil.() | cons.Bool.L
+datatype Len = asklen.MyList | retlen.Int
+
+calcLen = \xs : nil.() | cons.Bool.Int -> 
+    case xs of nil -> \y : () -> 0 
+            of cons -> \tpl : Bool.Int -> 1 + pr 2 tpl;
+
+Q = asklen?list -> let len = fold list calcLen 
+        within retlen!len -> SKIP
+assert {} |- Q : Proc(Len)

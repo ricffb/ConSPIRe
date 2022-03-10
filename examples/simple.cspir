@@ -1,0 +1,42 @@
+typevar X
+datatype USR = a.() | b.()
+datatype KEY = ska.() | skb.() | pka.() | pkb.() | k.() | l.()
+datatype MSG = \M -> scrt.X | key.KEY | enc.KEY.M
+datatype T = send.USR.USR.MSG | recv.USR.USR.MSG | signal.X
+
+sk = (\u : USR -> case u 
+    of a -> \y : () -> ska.()
+    of b -> \y : () -> skb.());
+
+pk = (\u : USR -> case u 
+    of a -> \y : () -> pka.()
+    of b -> \y : () -> pkb.());
+
+Emitter(a: USR) = |~| b : USR @ |~| sesskey : KEY @ 
+            send!a!b!enc.(pk b, (enc.(sk a, key.(k.())))) 
+            -> |~| s : X @ recv!a!b!enc.(k.(), scrt.s) 
+            -> STOP
+
+Responder(b: USR) =  |~| a : USR @ |~| sesskey : KEY @ 
+            recv!b!a!enc.(pk b, (enc.(sk a, key.sesskey)))  
+            -> |~| s : X @ send!b!a!enc.(sesskey, scrt.s) 
+            -> STOP
+
+Participant(u:USR) = Emitter(u) |~| Responder(u)
+
+Alert = |~| s : X @ send?from?to!scrt.s -> signal!s 
+            -> recv!to!from!scrt.s -> Network
+Relay = send?from?to?m -> recv!to!from!m -> Network
+Network = Alert [] Network
+
+Spec = (send?a?b?m -> Spec) |~| (recv?a?b?m -> Spec)
+
+
+Impl = let ua = a.() within
+       let ub = b.() within
+        (Participant(ua) [| {} |] Participant(ub)) 
+        [| {send.*{USR.USR.MSG}, recv.*{USR.USR.MSG}} |] Network
+
+assert {} |- Spec : Proc(T)
+
+assert {} |- Impl : Proc(T)
