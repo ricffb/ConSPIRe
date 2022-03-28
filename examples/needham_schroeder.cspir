@@ -1,0 +1,42 @@
+datatype USR = a.() | b.()
+datatype KEY = ska.() | skb.() | pka.() | pkb.() | k.() | l.()
+typevar NONCE
+datatype MSG = \M -> nonce.NONCE | key.KEY | enc.KEY.M | user.USR | sq.(\L -> nil.() | cons.M.L)
+datatype T = send.USR.USR.MSG | recv.USR.USR.MSG | running.USR.USR.NONCE | commit.USR.USR.NONCE
+
+sk = (\u : USR -> case u 
+    of a -> \y : () -> ska.()
+    of b -> \y : () -> skb.());
+
+pk = (\u : USR -> case u 
+    of a -> \y : () -> pka.()
+    of b -> \y : () -> pkb.());
+
+Initiator(self: USR) = |~| b: USR @ |~| na: NONCE @
+        send!self!b!enc.(pk b, sq.(cons.(nonce.na, cons.(user.self, nil.()))))
+    ->  |~| nb: NONCE @ 
+        recv!self!b!enc.(pk self, sq.(cons.(nonce.na, cons.(nonce.nb, nil.()))))
+    ->  commit!self!b!na
+    ->  running!self!b!nb
+    ->  send!self!b!enc.(pk b, nonce.nb)
+    ->  SKIP
+
+Responder(self: USR) = |~| a: USR @ |~| na: NONCE @
+        recv!self!a!enc.(pk self, sq.(cons.(nonce.na, cons.(user.a, nil.()))))
+    ->  running!self!a!na
+    ->  |~| nb: NONCE @ (nb != na) & 
+        send!self!a!enc.(pk a, sq.(cons.(nonce.na, cons.(nonce.nb, nil.()))))
+    ->  recv!self!a!enc.(pk self, nonce.nb)
+    ->  commit!self!a!nb
+    ->  SKIP
+
+Participant(u:USR) = Initiator(u) |~| Responder(u)
+
+Network = send?from?to?m -> recv!to!from!m -> Network
+
+Impl = let ua = a.() within
+       let ub = b.() within
+        (Participant(ua) [| {} |] Participant(ub)) 
+        [| {send.*{USR.USR.MSG}, recv.*{USR.USR.MSG}} |] Network
+
+assert {} |- Impl : Proc(T)
