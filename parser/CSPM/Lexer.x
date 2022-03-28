@@ -63,6 +63,7 @@ tokens :-
   \)                                    { lex' TokenCB      }
   \;                                    { lex' TokenSemicolon }
   \@                                    { lex' TokenAmpersat }
+  \&                                    { lex' TokenAmpersand }
   \:                                    { lex' TokenColon }
   \?                                    { lex' TokenQm }
   \!                                    { lex' TokenExcl }
@@ -116,6 +117,7 @@ unLex TokenOB = "("
 unLex TokenCB = ")"     
 unLex TokenSemicolon = ";"
 unLex TokenAmpersat = "@"
+unLex TokenAmpersand = "&"
 unLex TokenColon = ":"
 unLex TokenQm = "?"
 unLex TokenExcl = "!"

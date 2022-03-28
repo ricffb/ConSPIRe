@@ -56,6 +56,7 @@ import CSPM.Lexer
       '[|'            { Token _ TokenParOpen }
       '|]'            { Token _ TokenParClose }
       '@'             { Token _ TokenAmpersat }
+      '&'             { Token _ TokenAmpersand }
       ':'             { Token _ TokenColon }
       '?'             { Token _ TokenQm }
       '!'             { Token _ TokenExcl }
@@ -150,6 +151,7 @@ PProc :: {Proc}
       | PProc '[]' PProc                { ExtChoice $1 $3 }
       | PProc '|~|' PProc               { IntChoice $1 $3 }
       | if Exp then PProc else PProc    { Ite $2 $4 $6 }
+      | Exp '&' PProc                   { Ite $1 $3 STOP } 
       | PProc ';' PProc                 { Seq $1 $3 }
       | PProc '[|' Set '|]' PProc       { Parallel $3 $1 $5 }
       | PProc '\\' Set                  { Hide $3 $1 }

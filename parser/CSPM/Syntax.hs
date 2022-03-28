@@ -184,6 +184,7 @@ data TokenClass
   | TokenParOpen
   | TokenParClose
   | TokenAmpersat
+  | TokenAmpersand
   | TokenColon
   | TokenQm
   | TokenDollar
