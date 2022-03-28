@@ -27,7 +27,7 @@ Participant(u:USR) = Emitter(u) |~| Responder(u)
 Alert = |~| s : X @ send?from?to!scrt.s -> signal!s 
             -> recv!to!from!scrt.s -> Network
 Relay = send?from?to?m -> recv!to!from!m -> Network
-Network = Alert [] Network
+Network = Alert [] Relay
 
 Spec = (send?a?b?m -> Spec) |~| (recv?a?b?m -> Spec)
 
