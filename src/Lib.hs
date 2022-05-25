@@ -47,7 +47,7 @@ data TypeError
   | NotInScope String
   | NotExpression String
   | NotChannel String Type
-  | NotSumType Type
+  | NotSumType String Type
   | NotProduct Type
   | NotInductive Type
   | NotProcess Type
@@ -63,7 +63,7 @@ instance Show TypeError where
     NotInScope s -> "Error Not in Scope: Symbol " ++ s ++ " was not in scope."
     NotExpression s -> "Error Not an Expression: Expected " ++ s ++ " to be an expression."
     NotChannel s ty -> "Error Not a Channel: Expected \"" ++ s ++ "\" to be a channel of " ++ show ty
-    NotSumType ty -> "Error Not a Sum Type: Expected " ++ show ty ++ " to be a sum type."
+    NotSumType s ty -> "Error Not a Sum Type: Expected " ++ show ty ++ " to be a sum type in " ++ s ++ "."
     NotProduct ty -> "Error Not a Product Type: Expected " ++ show ty ++ " to be a product type."
     NotInductive ty -> "Error Not an inductive Type: Expected " ++ show ty ++ " to be inductive."
     NotProcess ty -> "Error Not a process Type: Expected " ++ show ty ++ " to be a process."
@@ -304,7 +304,7 @@ checkPCase t@(TSum sums) cases = do
               ty <!| argT
               alph <!| alphabet
             _ -> throwError $ NotFunction prT
-checkPCase ty _ = throwError $ NotSumType ty
+checkPCase ty _ = throwError $ NotSumType "case splitting of processes" ty
 
 checkExpHasType' :: (l -> Check Type) -> Exp'' l Type -> Type -> Check Type
 checkExpHasType' chLit exp t = do
@@ -384,9 +384,25 @@ checkExp' chLit exp = case exp of
         TProd ts -> if i <= length ts then return $ ts !! (i -1) else throwError $ NotInScope $ "pr " ++ show i ++ " " ++ show ty
         _ -> throwError $ NotProduct ty
     | otherwise -> throwError $ NotInScope $ "pr " ++ show i ++ ": " ++ show i ++ "<= 0"
+  LetExp var assign exp -> do
+    expT <- checkExp assign
+    addToEnv (var, expT) $ checkExp exp
+  IteExp test ifBranch elseBranch -> do
+    et <- checkExpHasType exp TBool
+    lhs <- checkExp ifBranch
+    rhs <- checkExp elseBranch
+    typeMerge lhs rhs
+
   where
     checkExp = checkExp' chLit
     checkExpHasType = checkExpHasType' chLit
+
+typeMerge :: Type -> Type -> Check Type
+typeMerge (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
+typeMerge x y
+  | x <| y = return y
+  | y <| x = return x
+  | otherwise = throwError $ TypeMismatch "exp if-then-else" x y
 
 checkExp :: Exp -> Check Type
 checkExp = checkExp' checkLit
@@ -437,10 +453,7 @@ checkECase chLit t@(TSum ts) (c : cs) = do
                   t -> throwError $ NotFunction t
               )
       | otherwise = throwError $ NotChannel ident t
-    typeMerge :: Type -> Type -> Check Type
-    typeMerge (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
-    typeMerge x y = if x <| y then return y else throwError $ TypeMismatch "exp case return" x y
-checkECase _ t _ = throwError $ NotSumType t
+checkECase _ t _ = throwError $ NotSumType "case expression" t
 
 -- Return a user defined type if there exist one
 fitInductiveType :: Type -> Check (Maybe Type)

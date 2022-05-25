@@ -69,6 +69,8 @@ data Exp'' l a
   | Fold (Exp'' l a) (Exp'' l a)
   | MathOp [Exp'' l a]
   | Project Int (Exp'' l a)
+  | LetExp ArgName (Exp'' l a) (Exp'' l a)
+  | IteExp (Exp'' l a) (Exp'' l a) (Exp'' l a)
   deriving (Show, Functor, Foldable, Eq, Ord)
 
 data Literal

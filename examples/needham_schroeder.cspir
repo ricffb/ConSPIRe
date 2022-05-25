@@ -40,3 +40,36 @@ Impl = let ua = a.() within
         [| {send.*{USR.USR.MSG}, recv.*{USR.USR.MSG}} |] Network
 
 assert {} |- Impl : Proc(T)
+
+-- Add an Intruder
+datatype L_MSG = \L -> nil.() | cons.MSG.L
+datatype FACT = L_MSG.MSG
+datatype L_FACTS = \L -> nil.() | cons.FACT.L
+
+-- MSG -> [MSG] -> L_FACTS
+sqReducer = \outerMessage: MSG -> \xs : nil.() | cons.MSG.L_FACTS ->
+    case xs of nil.() -> \y: () -> nil.()
+            of cons -> \tpl : MSG.L_FACTS ->
+                let m = pr 1 tpl within 
+                let l = pr 2 tpl within
+                cons.((outerMessage, m), l);
+
+-- MSG -> L_FACT
+msgReducer = \xs : \M -> nonce.NONCE | key.KEY | enc.KEY.M | user.USR | sq.(\L -> nil.() | cons.MSG.L)
+
+duduce = \xs : nil.() | cons.MSG.L_FACTS -> 
+    case xs of nil -> \y : () -> nil.()
+            of cons -> \tpl : MSG.L_FACTS ->
+                let m = pr 1 tpl within 
+                let l = pr 2 tpl within
+                case m
+                    of sq -> 
+                        \y: L_MSG -> let newFacts = fold (sqReducer m) y within cons.(newFacts, l)
+                    of enc ->
+                        \y: KEY.MSG -> 
+
+
+
+
+
+deductions1 = \x: L_FACTS -> fold 

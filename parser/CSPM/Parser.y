@@ -69,18 +69,21 @@ import CSPM.Lexer
       Proc            { Token _ TokenProc }
 
 
-%nonassoc let if
+%nonassoc let if '|' var
+%right '->'
 %left '\\'
 %left '|~|'
 %left '[]'
 %left ';'
-%right '->'
+-- %right '->'
+%right PREFIX
 %left '!' '?' '$'
 %right '.'
-%nonassoc '=='
+%nonassoc '==' '!=' 
 %left '+' '-'
 %left  '*' '/'
-%left APP
+%nonassoc APP
+-- %nonassoc '(' ')'
 %%
 
 Programm :: { Programm }
@@ -147,7 +150,7 @@ PProc :: {Proc}
       | SKIP                            { SKIP }
       | name                            { CallProc $1 [] }
       | name '(' Seq ')'                { CallProc $1 (reverse $3)}
-      | Action '->' PProc               { Prefix $1 $3 }
+      | Action '->' PProc %prec PREFIX  { Prefix $1 $3 }
       | PProc '[]' PProc                { ExtChoice $1 $3 }
       | PProc '|~|' PProc               { IntChoice $1 $3 }
       | if Exp then PProc else PProc    { Ite $2 $4 $6 }
@@ -212,7 +215,8 @@ ActionS :: { [ActionI] }
 Exp :: {Exp}
 Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Lit                         { Lit $1 }
-   -- | Pattern                     { Pattern $1 }
+      | let var '=' Exp within Exp  { LetExp $2 $4 $6 }
+      | if Exp then Exp else Exp    { IteExp $2 $4 $6 }
       | '(' ExpSeq ')'              { Tuple $ reverse $2 }
       | '(' Exp ')'                 { $2 }
       | '(' ')'                     { Tuple [] }
