@@ -1,0 +1,11 @@
+datatype Ind1 = \L -> nil.() | cons.Int.L
+datatype Ind2 = \U -> nil.() | cons.Int.U
+datatype T = out.Ind1
+
+fun = \y : Ind2 -> y;
+
+e1 = cons.(1, nil.()) :: Ind1;
+
+Pr = out!(fun e1) -> STOP
+
+assert {} |- Pr : Proc( T )

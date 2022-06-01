@@ -1,0 +1,21 @@
+datatype A = a.() | b.()
+datatype T = out.A
+
+rec recfun :: A -> A  = \y: A -> case y
+                    of b ->  \x: () -> y
+                    of a -> (\x: () -> (recfun y));
+
+
+P = out!(recfun (a.())) -> STOP
+
+fun = \y : A -> y;
+
+expr = let rec recf :: A -> A  = \y: A -> case y
+                    of b -> \x: () -> y
+                    of a -> \x: () -> (recf y) within recf a.();
+ 
+Q = out!expr -> STOP
+
+assert {} |- P : Proc(T)
+
+assert {} |- Q : Proc(T) 

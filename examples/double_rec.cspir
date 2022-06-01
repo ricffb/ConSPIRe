@@ -4,14 +4,15 @@ datatype L_Alpha = \L -> nil.() | cons.Alpha.L
 datatype Beta = b.() | none.()
 datatype Maybe_Alpha = just.Alpha | none.()
 
-e1 = cons.(a.(), cons.(sq.(cons.(a.(), nil.())), nil.()));
+
+e1 = (cons.(a.(), cons.(sq.(cons.(a.(), nil.())), nil.()))) :: L_Alpha;
 
 remElement = \rem: Alpha -> \xs: (nil.() | cons.Alpha.L_Alpha) ->
     case xs
         of nil -> \y: () -> nil.()
         of cons -> \tpl: Alpha.L_Alpha -> 
-            let a = pr 1 tpl within
-            let li = pr 2 tpl within
+            let a = (pr 1 tpl) :: Alpha within
+            let li = (pr 2 tpl) :: L_Alpha within
             if a == rem then li else cons.(a, li); 
 
 getElement = \xs: nil.() | cons.Alpha.Maybe_Alpha ->
@@ -22,10 +23,11 @@ getElement = \xs: nil.() | cons.Alpha.Maybe_Alpha ->
     
 
 -- [A] -> [A] -> [A] 
-app = \xs: L_Alpha -> \ys: L_Alpha ->
+rec app :: L_Alpha -> (L_Alpha -> L_Alpha) = \xs: L_Alpha -> \ys: L_Alpha ->
     case fold xs getElement 
-        of just -> \y: Alpha -> app (fold xs (remElement y)) (cons.(y, ys))
+        of just -> \y: Alpha -> (app (fold xs (remElement y))) (cons.(y, ys))
         of none -> \y: () -> ys;
+
 
 unseq = \xs: nil.() | cons.Alpha.L_Alpha ->
     case xs 
@@ -38,7 +40,7 @@ unseq = \xs: nil.() | cons.Alpha.L_Alpha ->
 caseSplitAlpha = \li: L_Alpha -> \xs: a.() | sq.(\Li -> nil.() | cons.L_Alpha.Li) ->
     case xs
         of a -> \y: () -> cons.(a.(), li)
-        of sq -> \s: (\Li -> nil.() | cons.L_Alpha.Li) -> fold s caseSplitSq; 
+        of sq -> \s: (\Li1 -> nil.() | cons.L_Alpha.Li1) -> fold s caseSplitSq; 
 
 caseSplitSq = \xs: nil.() | cons.L_Alpha.L_Alpha ->
     case xs
@@ -52,9 +54,18 @@ datatype L_L_Alpha = \LL -> nil.() | cons.L_Alpha.LL
 -- Alpha -> L_Alpha -> L_Alpha
 consLA = \y: L_Alpha -> \ys: L_L_Alpha -> cons.(y, ys);
 
-listlistAlpha = (consLA e2) ((consLA nil.()) nil.());
-e2 = cons.(a.(), nil.());
+listlistAlpha = ((consLA e2) ((consLA nil.()) nil.())) :: L_L_Alpha;
+e2 = cons.(a.(), nil.()) :: L_Alpha;
 
-Pr = out!(fold listlistAlpha caseSplitSq) -> STOP
+e3 = (cons.(a.(), e2)); --:: nil.() | cons.Alpha.L_Alpha ;
 
-assert  {} |- Pr : Proc( T )
+datatype T2 = out.((a.() | sq.(\Li2 -> nil.() | cons.L_Alpha.Li2)) -> L_Alpha)
+
+Pr = out!(caseSplitAlpha e2) -> STOP
+
+assert  {} |- Pr : Proc( T2 )
+
+
+Test = out!(fold e1 unseq) -> STOP
+
+assert  {} |- Test : Proc( T )
