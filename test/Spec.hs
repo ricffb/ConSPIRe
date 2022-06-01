@@ -4,6 +4,8 @@ import qualified Data.Set as Set
 import Lib (Env (..), TypeError, checkTop, pEmpty, runCheck)
 import Test.Hspec
 
+
+{--
 main :: IO ()
 main =
   hspec $
@@ -90,3 +92,4 @@ parallelEnv =
 
 parallelProc :: Proc
 parallelProc = Parallel (Set.fromList [Sum "recv" (Lit (LStar (TProd [TVar "U", TVar "U", TVar "X"]))), Sum "send" (Lit (LStar (TProd [TVar "U", TVar "U", TVar "X"])))]) (Parallel (Set.fromList []) (CallProc "A" []) (CallProc "B" [])) (CallProc "Net" [])
+--}

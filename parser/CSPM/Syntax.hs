@@ -20,19 +20,24 @@ type ArgName = String
 data Construct
   = TypeVar String
   | NamedType String Type
-  | NamedExpr String Exp
-  | -- | TypeAnnotation String Type
-    Assert (Map.Map String Type) String PType
+  | NamedExpr String TExp
+  | NamedRecExpr String Type TExp
+   -- | TypeAnnotation String Type
+  |  Assert (Map.Map String Type) String PType
   | NamedProc String [(ArgName, Type)] Proc
   deriving (Show)
 
 type Proc = Proc' Type
 
+type TExp = TExp'' Literal Type
+
+type TExp' = TExp'' Literal
+
 type Exp = Exp'' Literal Type
 
 type Exp' = Exp'' Literal
 
-type SElem = Exp'' SLiteral Type
+type SElem = TExp'' SLiteral Type
 
 data Proc' a
   = STOP
@@ -41,12 +46,12 @@ data Proc' a
   | Prefix (Action' a) (Proc' a)
   | ExtChoice (Proc' a) (Proc' a)
   | IntChoice (Proc' a) (Proc' a)
-  | Ite (Exp' a) (Proc' a) (Proc' a)
+  | Ite (TExp' a) (Proc' a) (Proc' a)
   | Seq (Proc' a) (Proc' a)
   | Parallel (Set.Set SElem) (Proc' a) (Proc' a)
   | Hide (Set.Set SElem) (Proc' a)
-  | Let String (Exp' a) (Proc' a)
-  | PCaseExpr (Exp' a) [PCase' a]
+  | Let String (TExp' a) (Proc' a)
+  | PCaseExpr (TExp' a) [PCase' a]
   | PLambda [ArgName] a (Proc' a)
   | ReplIntChoice String Type (Proc' a)
   deriving (Show, Functor, Foldable)
@@ -58,19 +63,24 @@ data PType
   = PType String PhiT
   deriving (Show)
 
+data TExp'' l a
+ = TExp (Exp'' l a) (Maybe a)
+ deriving(Show, Functor, Foldable, Eq, Ord)
+
 data Exp'' l a
-  = Eq (Exp'' l a) (Exp'' l a)
-  | App (Exp'' l a) (Exp'' l a)
-  | ELambda ArgName a (Exp'' l a)
-  | ECaseExpr (Exp'' l a) [ECase' l a]
+  = Eq (TExp'' l a) (TExp'' l a)
+  | App (TExp'' l a) (TExp'' l a)
+  | ELambda ArgName a (TExp'' l a)
+  | ECaseExpr (TExp'' l a) [ECase' l a]
   | Lit l
-  | Tuple [Exp'' l a]
-  | Sum String (Exp'' l a)
-  | Fold (Exp'' l a) (Exp'' l a)
-  | MathOp [Exp'' l a]
-  | Project Int (Exp'' l a)
-  | LetExp ArgName (Exp'' l a) (Exp'' l a)
-  | IteExp (Exp'' l a) (Exp'' l a) (Exp'' l a)
+  | Tuple [TExp'' l a]
+  | Sum String (TExp'' l a)
+  | Fold (TExp'' l a) (TExp'' l a)
+  | MathOp [TExp'' l a]
+  | Project Int (TExp'' l a)
+  | LetExp ArgName (TExp'' l a) (TExp'' l a)
+  | LetRecExp ArgName a (TExp'' l a) (TExp'' l a)
+  | IteExp (TExp'' l a) (TExp'' l a) (TExp'' l a)
   deriving (Show, Functor, Foldable, Eq, Ord)
 
 data Literal
@@ -88,7 +98,7 @@ type ECase = ECase' Literal Type
 
 type SCase = ECase' SLiteral Type
 
-data ECase' l a = ECase String (Exp'' l a)
+data ECase' l a = ECase String (TExp'' l a)
   deriving (Show, Functor, Foldable, Eq, Ord)
 
 type PCase = PCase' Type
@@ -104,7 +114,7 @@ type ActionI = ActionI' Type
 
 data ActionI' a
   = Input String
-  | Output (Exp' a)
+  | Output (TExp' a)
   | Selection String
   deriving (Show, Functor, Foldable)
 
@@ -114,18 +124,20 @@ type Action' a = (String, [ActionI' a])
 
 type SumT a = (String, a)
 
-data Type
-  = TProc Type
-  | TFun Type Type
-  | TInd String Type
+type Type = Type' String
+
+data Type' a
+  = TProc (Type' a)
+  | TFun (Type' a) (Type' a)
+  | TInd a (Type' a)
   | TNum
   | TBool
-  | TSum [SumT Type]
-  | TProd [Type]
-  | TVar String
-  deriving (Ord)
+  | TSum [SumT (Type' a)]
+  | TProd [Type' a]
+  | TVar a
+  deriving (Ord, Functor)
 
-instance Eq Type where
+instance Eq a => Eq (Type' a) where
   (TProc lhs) == (TProc rhs) = lhs == rhs
   (TFun lhsa lhsi) == (TFun rhsa rhsi) = lhsa == rhsa && lhsi == rhsi
   (TInd ls lhs) == (TInd rs rhs) = ls == rs && lhs == rhs
@@ -136,18 +148,18 @@ instance Eq Type where
   (TSum lts) == (TSum rts) = and $ zipWith (\(c1, t1) (c2, t2) -> c1 == c2 && t1 == t2) lts rts
   _ == _ = False
 
-instance Show Type where
+instance Show a => Show (Type' a) where
   show ty = case ty of
     TProc ty' -> "Proc(" ++ show ty' ++ ")"
     TFun ty' ty2 -> show ty' ++ " -> " ++ show ty2
-    TInd s ty' -> "\\" ++ s ++ " -> " ++ show ty'
+    TInd s ty' -> "\\" ++ show s ++ " -> " ++ show ty'
     TNum -> "Int"
     TBool -> "Bool"
     TSum [] -> "{}"
     TSum ((ch0, ty0) : xs) -> "{" ++ foldl' (\acc (ch, ty) -> acc ++ " | " ++ ch ++ "." ++ show ty) (ch0 ++ "." ++ show ty0) xs ++ "}"
     TProd [] -> "()"
     TProd (x : xs) -> "(" ++ foldl' (\acc ty -> acc ++ "." ++ show ty) (show x) xs ++ ")"
-    TVar s -> s
+    TVar s -> show s
 
 data TokenClass
   = TokenSkip
@@ -161,6 +173,7 @@ data TokenClass
   | TokenCase
   | TokenOf
   | TokenLet
+  | TokenRec
   | TokenIn
   | TokenTrue
   | TokenFalse
@@ -200,4 +213,5 @@ data TokenClass
   | TokenEOF
   | TokenFold
   | TokenProject
+  | TokenDoubleColon
   deriving (Show)

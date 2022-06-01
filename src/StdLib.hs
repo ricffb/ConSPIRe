@@ -1,6 +1,6 @@
 module StdLib where
 
-import CSPM.Syntax (Exp, Exp'' (ELambda, Project), Type (TBool, TNum))
+import CSPM.Syntax (Exp, Exp'' (ELambda, Project), Type' (TBool, TNum), Type)
 import qualified Data.Map as Map
 
 stdTypeEnv :: Map.Map String Type

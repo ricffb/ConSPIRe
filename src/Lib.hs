@@ -6,7 +6,7 @@
 module Lib where
 
 import CSPM.Parser
-import CSPM.Syntax (Action, Action' (..), ActionI, ActionI' (..), Construct (..), ECase, ECase' (..), Exp, Exp'' (..), Literal (LBool, LInt, LVar), PCase, PCase' (PCase), Proc, Proc' (..), Programm, SElem, SLiteral (LLit, LStar), SumT, Type (..))
+import CSPM.Syntax (Action, Action' (..), ActionI, ActionI' (..), Construct (..), ECase, ECase' (..), Exp, Exp'' (..), Literal (LBool, LInt, LVar), PCase, PCase' (PCase), Proc, Proc' (..), Programm, SElem, SLiteral (LLit, LStar), SumT, Type' (..), Type, TExp'' (TExp), TExp)
 -- import qualified Data.HashMap.Lazy as Map
 
 -- import qualified Data.HashMap.Lazy as Map
@@ -37,6 +37,7 @@ import Subsume (Subsume ((<|)))
 import Text.Show (Show)
 import TypeLib (mapVar, resolve, (</))
 import Utility (safeHead)
+import Control.Monad.Extra (maybeM)
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
@@ -80,7 +81,7 @@ sEmpty = TSum []
 data Env = Env
   { typeEnv :: Map.Map String Type,
     procEnv :: Map.Map String Proc,
-    exprEnv :: Map.Map String Exp,
+    exprEnv :: Map.Map String TExp,
     alphabet :: Type
   }
   deriving (Show)
@@ -96,8 +97,8 @@ addToEnv (n, t) = local (\env -> env {typeEnv = Map.insert n t (typeEnv env)})
 addToEnv' :: [(String, Type)] -> Check a -> Check a
 addToEnv' xs = local (\env -> env {typeEnv = Map.fromList xs `Map.union` typeEnv env})
 
--- Return a tuple of (var, type) pairs, fst -> Outputs, snd -> new Variables
-findTypesOfChannel :: Action -> Check ([(Exp, Type)], [(String, Type)])
+-- Return a tuple of (var, type) pairs, fst -> Outputs, snd -> new Variables(TExp'' l a) (TExp'' l a)
+findTypesOfChannel :: Action -> Check ([(TExp, Type)], [(String, Type)])
 findTypesOfChannel (chan, items) = do
   Env {alphabet} <- ask
   case alphabet of
@@ -106,7 +107,7 @@ findTypesOfChannel (chan, items) = do
       Just t -> matchItems t items
     _ -> throwError $ NotChannel chan alphabet
   where
-    matchItems :: Type -> [ActionI] -> Check ([(Exp, Type)], [(String, Type)])
+    matchItems :: Type -> [ActionI] -> Check ([(TExp, Type)], [(String, Type)])
     matchItems t@(TProd typs) actions =
       if length typs /= length actions
         then throwError $ Generic $ "The number of Arguments for type " ++ show t ++ " is different: " ++ show actions
@@ -255,7 +256,7 @@ check p = case p of
         | otherwise -> throwError $ TypeMismatch "replicated internal alphabet" alphabet ty
       _ -> throwError $ NotProcess ptype
   PCaseExpr exp cases -> do
-    expT <- checkExp exp
+    expT <- checkTExp exp
     checkPCase expT cases
   PLambda [arg] typ pr -> do
     prT <- addToEnv (arg, typ) $ check pr
@@ -265,7 +266,7 @@ check p = case p of
     prT <- addToEnv' argTs $ check pr
     return $ TFun typ prT
   Let var exp pr -> do
-    expT <- checkExp exp
+    expT <- checkTExp exp
     addToEnv (var, expT) $ check pr
 
 matchProd :: [String] -> Type -> Check [(String, Type)]
@@ -306,7 +307,7 @@ checkPCase t@(TSum sums) cases = do
             _ -> throwError $ NotFunction prT
 checkPCase ty _ = throwError $ NotSumType "case splitting of processes" ty
 
-checkExpHasType' :: (l -> Check Type) -> Exp'' l Type -> Type -> Check Type
+checkExpHasType' :: Show l => (l -> Check Type) -> TExp'' l Type -> Type -> Check Type
 checkExpHasType' chLit exp t = do
   inferredType <- checkExp' chLit exp
   if inferredType <| t
@@ -315,21 +316,32 @@ checkExpHasType' chLit exp t = do
 
 checkExpHasType = checkExpHasType' checkLit
 
+checkTExp' :: Show l => (l -> Check Type) -> TExp'' l Type -> Check Type
+checkTExp' chLit texp@(TExp exp mType) = case mType of
+  Just ty -> checkExpHasType' chLit texp ty
+  Nothing -> checkExp' chLit texp
+
 -- Check Expression for type
-checkExp' :: (l -> Check Type) -> Exp'' l Type -> Check Type
--- checkExp exp | traceShow exp False = undefined
-checkExp' chLit exp = case exp of
-  Eq exp' exp2 -> do
+checkExp' :: Show l => (l -> Check Type) -> TExp'' l Type -> Check Type
+checkExp' _ exp | traceShow exp False = undefined
+checkExp' chLit texp@(TExp exp assertTy) = case exp of
+  ---
+  Eq exp' exp2 ->
+    if maybe False ( <| TBool) assertTy then throwError $ Generic $ "Asserted Equality type must be subsumed by bool was: " ++ maybe "" show assertTy
+    else do
     rhs <- checkExp exp'
     lhs <- checkExp exp2
     if rhs == lhs then return TBool else throwError $ TypeMismatch "==" rhs lhs
+  ---
   Lit s -> chLit s
+  ---
   App fun arg -> do
     tfun <- checkExp fun
     targ <- checkExp arg
     case tfun of
       TFun argT retT -> if targ <| argT then return retT else throwError $ TypeMismatch "fun application" argT targ
       _ -> throwError $ NotFunction tfun
+  ---
   ELambda argname t@(TVar typename) expr -> do
     env <- ask
     let tEnv = typeEnv env
@@ -340,18 +352,26 @@ checkExp' chLit exp = case exp of
       Just ty -> do
         retT <- addToEnv (argname, ty) $ checkExp expr
         return $ TFun ty retT
+  ---
   ELambda argname ty expr -> do
     retT <- addToEnv (argname, ty) $ checkExp expr
-    return $ TFun ty retT
+    let funT = TFun ty retT
+    if maybe True (funT <|) assertTy 
+      then return $ fromMaybe funT assertTy
+      else throwError $ TypeMismatch "lambda expr" (fromMaybe funT assertTy) funT
+  ---
   ECaseExpr exp cases -> do
     expT <- checkExp exp
     checkECase chLit expT cases
+  ---
   Tuple exprs -> do
     typs <- mapM checkExp exprs
     return $ TProd typs
+  ---
   Sum chan expr -> do
     exprT <- checkExp expr
     return $ TSum [(chan, exprT)]
+  ---
   Fold ind fun -> do
     inferredT <- checkExp ind
     indT <- case inferredT of
@@ -368,15 +388,17 @@ checkExp' chLit exp = case exp of
         funT <- checkExp fun
         case funT of
           TFun dom img ->
-            let tu = (t </ var $ img)
+            let tu = fromMaybe (t </ var $ img) assertTy
              in if dom <| tu
                   then return img
                   else throwError $ TypeMismatch "fold" tu dom
           _ -> throwError $ NotFunction funT
       _ -> undefined
+  ---
   MathOp exprs -> do
     mapM_ (`checkExpHasType` TNum) exprs
     return TNum
+  ---
   Project i exp
     | i > 0 -> do
       ty <- checkExp exp
@@ -384,28 +406,39 @@ checkExp' chLit exp = case exp of
         TProd ts -> if i <= length ts then return $ ts !! (i -1) else throwError $ NotInScope $ "pr " ++ show i ++ " " ++ show ty
         _ -> throwError $ NotProduct ty
     | otherwise -> throwError $ NotInScope $ "pr " ++ show i ++ ": " ++ show i ++ "<= 0"
+  ---
   LetExp var assign exp -> do
     expT <- checkExp assign
     addToEnv (var, expT) $ checkExp exp
+  ---
+  LetRecExp var ty assign exp -> do
+    expT <- addToEnv (var, ty) $ checkExp assign
+    if expT <| ty 
+    then addToEnv (var, ty) $ checkExp exp
+    else throwError $ TypeMismatch "let rec" ty expT
+  ---
   IteExp test ifBranch elseBranch -> do
-    et <- checkExpHasType exp TBool
+    et <- checkExpHasType test TBool
     lhs <- checkExp ifBranch
     rhs <- checkExp elseBranch
-    typeMerge lhs rhs
+    typeMerge "exp if-then-else" lhs rhs
+  
 
   where
     checkExp = checkExp' chLit
     checkExpHasType = checkExpHasType' chLit
 
-typeMerge :: Type -> Type -> Check Type
-typeMerge (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
-typeMerge x y
+typeMerge :: String -> Type -> Type -> Check Type
+typeMerge _ (TSum xs) (TSum ys) = return $ TSum $ xs ++ ys
+typeMerge msg x y
   | x <| y = return y
   | y <| x = return x
-  | otherwise = throwError $ TypeMismatch "exp if-then-else" x y
+  | otherwise = throwError $ TypeMismatch msg x y
 
-checkExp :: Exp -> Check Type
+checkExp :: TExp -> Check Type
 checkExp = checkExp' checkLit
+
+checkTExp = checkTExp' checkLit
 
 checkSet :: Set.Set SElem -> Check ()
 checkSet = mapM_ checkElem
@@ -428,11 +461,12 @@ checkLit l = case l of
     case typeEnv !? s of
       Nothing -> case exprEnv !? s of
         Nothing -> throwError $ NotInScope s
-        Just expr -> checkExp expr -- TODO: Watch out for infinite  recursion; Is there Memoization?
+        Just texp@(TExp exp (Just ty)) -> addToEnv (s,ty) $ checkExp texp -- TODO: Watch out for infinite  recursion; Is there Memoization?
+        Just texp@(TExp exp _) -> checkExp texp --throwError $ Generic $ show texp--checkExp texp
       Just nt -> return nt
   LBool b -> return TBool
 
-checkECase :: forall l. (l -> Check Type) -> Type -> [ECase' l Type] -> Check Type
+checkECase :: forall l. (Show l) => (l -> Check Type) -> Type -> [ECase' l Type] -> Check Type
 checkECase _ _ [] = throwError EmptyCase
 checkECase chLit t@(TSum ts) (c : cs) = do
   init <- checkCase c
@@ -441,7 +475,7 @@ checkECase chLit t@(TSum ts) (c : cs) = do
     foldCase :: Type -> ECase' l Type -> Check Type
     foldCase ty cs = do
       ct <- checkCase cs
-      typeMerge ct ty
+      typeMerge "exp case" ct ty
     checkCase :: ECase' l Type -> Check Type
     checkCase (ECase ident exp)
       | Just ty <- lookup ident ts =

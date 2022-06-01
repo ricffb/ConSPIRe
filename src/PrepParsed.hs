@@ -2,7 +2,8 @@
 
 module PrepParsed (prepEnv) where
 
-import CSPM.Syntax (Construct (Assert, NamedExpr, NamedProc, NamedType, TypeVar), Proc' (PLambda), Type (TProd, TVar))
+import CSPM.Syntax (Construct (Assert, NamedExpr, NamedProc, NamedType, TypeVar, NamedRecExpr), Proc' (PLambda), 
+  Type' (TProd, TVar), TExp'' (TExp))
 import Data.Foldable (foldl')
 import qualified Data.Map as Map
 import Lib (Env (Env, exprEnv, procEnv, typeEnv), emptyEnv)
@@ -28,6 +29,7 @@ prepEnv = foldl' (flip $ collectEnv . tfNamedProc) stdEnv
       TypeVar s -> let newtEnv = Map.insert s (TVar s) typeEnv in env --{typeEnv = newtEnv}
       NamedType s ty -> let newtEnv = Map.insert s ty typeEnv in env {typeEnv = newtEnv}
       NamedExpr s ex -> let neweEnv = Map.insert s ex exprEnv in env {exprEnv = neweEnv}
+      NamedRecExpr s ty (TExp exp _) -> let neweEnv = Map.insert s (TExp exp $ Just ty) exprEnv in env {exprEnv = neweEnv}
       Assert {} -> env
       NamedProc s [] pr -> let newpEnv = Map.insert s pr procEnv in env {procEnv = newpEnv}
       NamedProc {} -> undefined -- must not occur due to tfNamedProc

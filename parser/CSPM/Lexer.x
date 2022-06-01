@@ -37,6 +37,7 @@ tokens :-
   case                                  { lex' TokenCase }
   of                                    { lex' TokenOf }
   let                                   { lex' TokenLet }
+  rec                                   { lex' TokenRec }
   within                                { lex' TokenIn }
   true                                  { lex' TokenTrue }
   false                                 { lex' TokenFalse }
@@ -65,6 +66,7 @@ tokens :-
   \@                                    { lex' TokenAmpersat }
   \&                                    { lex' TokenAmpersand }
   \:                                    { lex' TokenColon }
+  \:\:                                  { lex' TokenDoubleColon }
   \?                                    { lex' TokenQm }
   \!                                    { lex' TokenExcl }
   \$                                    { lex' TokenDollar }
@@ -97,6 +99,9 @@ setFilePath = alexSetUserState . AlexUserState
 -- The token type, consisting of the source code position and a token class.
 data Token = Token AlexPosn TokenClass
   deriving ( Show )
+
+srcLoc :: Token -> AlexPosn
+srcLoc (Token l _) = l
 
 -- For nice parser error messages.
 unLex :: TokenClass -> String
@@ -149,6 +154,7 @@ unLex TokenTrue = "True"
 unLex TokenFalse = "False"
 unLex TokenEOF = "<EOF>"
 unLex TokenProject = "pr"
+unLex TokenDoubleColon = "::"
 
 alexEOF :: Alex Token
 alexEOF = do

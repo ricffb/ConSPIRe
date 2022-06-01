@@ -1,7 +1,7 @@
 module Main where
 
 import CSPM.Parser (parseFile)
-import CSPM.Syntax (Construct (Assert), PType (PType), Programm, Type (TProc))
+import CSPM.Syntax (Construct (Assert), PType (PType), Programm, Type' (TProc), Type)
 import Data.Map ((!?))
 import qualified Data.Map as Map
 import Debug.Trace (traceShowId)

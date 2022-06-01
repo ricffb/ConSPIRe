@@ -7,6 +7,8 @@ import qualified Data.Map.Strict as Map
 import Data.Char
 import CSPM.Syntax
 import CSPM.Lexer
+import Data.Maybe
+import Debug.Trace (traceShow)
 }
 
 
@@ -29,6 +31,7 @@ import CSPM.Lexer
       case            { Token _ TokenCase }
       of              { Token _ TokenOf }
       let             { Token _ TokenLet }
+      rec             { Token _ TokenRec }
       fold            { Token _ TokenFold }
       within          { Token _ TokenIn }
       true            { Token _ TokenTrue }
@@ -58,6 +61,7 @@ import CSPM.Lexer
       '@'             { Token _ TokenAmpersat }
       '&'             { Token _ TokenAmpersand }
       ':'             { Token _ TokenColon }
+      '::'            { Token _ TokenDoubleColon }
       '?'             { Token _ TokenQm }
       '!'             { Token _ TokenExcl }
       '$'             { Token _ TokenDollar }
@@ -69,7 +73,7 @@ import CSPM.Lexer
       Proc            { Token _ TokenProc }
 
 
-%nonassoc let if '|' var
+%nonassoc let if '|' var '::'
 %right '->'
 %left '\\'
 %left '|~|'
@@ -83,7 +87,7 @@ import CSPM.Lexer
 %left '+' '-'
 %left  '*' '/'
 %nonassoc APP
--- %nonassoc '(' ')'
+%left '.'
 %%
 
 Programm :: { Programm }
@@ -98,7 +102,7 @@ Construct :: { Construct }
 Construct   : Typedecl    {$1}
             | Assertion   {$1}
             | P_Assign    {$1}
-            | ExprDecl ';'    {$1}
+            | ExprDecl ';'{$1}
 
 Typedecl :: { Construct }
 Typedecl    : typevar name { TypeVar $2 }
@@ -137,6 +141,7 @@ ConstSeq    :: {[(String, Type)]}
 
 ExprDecl :: { Construct }
 ExprDecl : var '=' Exp { NamedExpr $1 $3 }
+ExprDecl : rec var '::' TypeBody '=' Exp { NamedRecExpr $2 $4 $6 }
 
 P_Type :: { PType }
 P_Type      : Proc '(' name ')' { PType $3 Nothing }
@@ -146,7 +151,7 @@ P_Assign    : name '=' PProc               {NamedProc $1 [] $3}
             | name '(' ArgSeq ')' '=' PProc   {NamedProc $1 (reverse $3) $6}
 
 PProc :: {Proc}
-      : STOP                            { STOP }
+      : STOP                            { STOP  }
       | SKIP                            { SKIP }
       | name                            { CallProc $1 [] }
       | name '(' Seq ')'                { CallProc $1 (reverse $3)}
@@ -210,15 +215,20 @@ ActionS :: { [ActionI] }
        | {- empty -}           { [] }
 
 {- id.a.b -> TSum "id" -}
+Exp :: {TExp}
+Exp   : '(' RawExp ')' {TExp $2 Nothing}
+      | '(' RawExp ')' '::' TypeBody {TExp $2 (Just $5)}
+      | RawExp {TExp $1 Nothing}
+      | RawExp '::' TypeBody {TExp $1 (Just $3)}
 
-
-Exp :: {Exp}
-Exp   : Exp '==' Exp                { Eq $1 $3 }
+RawExp :: {Exp}
+RawExp : Exp '==' Exp                { Eq $1 $3 }
       | Lit                         { Lit $1 }
       | let var '=' Exp within Exp  { LetExp $2 $4 $6 }
+      | let rec var '::' TypeBody '=' Exp within Exp { LetRecExp $3 $5 $7 $9 }
       | if Exp then Exp else Exp    { IteExp $2 $4 $6 }
       | '(' ExpSeq ')'              { Tuple $ reverse $2 }
-      | '(' Exp ')'                 { $2 }
+      -- | '(' RawExp ')'              { $2 }
       | '(' ')'                     { Tuple [] }
       | Exp Exp %prec APP           { App $1 $2 }
       | '\\' var ':' TypeBody '->' Exp  { ELambda $2 $4 $6 }
@@ -232,10 +242,14 @@ Exp   : Exp '==' Exp                { Eq $1 $3 }
       | Exp '!=' Exp                { Eq $1 $3 }
       | pr number Exp               { Project $2 $3 }
 
-SExp :: { SElem }
-SExp   : SExp '==' SExp             { Eq $1 $3 }
+SExp :: {SElem}
+SExp  : RawSExp {TExp $1 Nothing}
+      | RawSExp '::' TypeBody {TExp $1 (Just $3)}
+
+RawSExp :: { Exp'' SLiteral Type}
+RawSExp   : SExp '==' SExp             { Eq $1 $3 }
       | SLit                        { Lit $1 }
-      | '(' SExp ')'                 { $2 }
+      | '(' RawSExp ')'                 { $2 }
       | SExp SExp %prec APP           { App $1 $2 }
       | '\\' var ':' TypeBody '->' SExp  { ELambda $2 $4 $6 }
       | case SExp SCases              { ECaseExpr $2 $3 }
@@ -273,8 +287,8 @@ ExpSeq : ExpSeq ',' Exp  { $3 : $1 }
 
 
 Cases :: { [ECase] }
-      : Cases of var '->' Exp      { (ECase $3 $5) : $1 }
-      | of var '->' Exp            { [ECase $2 $4] }
+      : Cases of var '->'   Exp      { (ECase $3 $5) : $1 }
+      | of var '->'  Exp          { [ECase $2 $4] }
 
 {
 lexwrap :: (Token -> Alex a) -> Alex a
