@@ -1,0 +1,23 @@
+datatype A = a.() | b.() | c.()
+
+datatype L_A = \L -> cons.A.L | nil.()
+
+datatype T = out.L_A
+
+fun = \x: A -> 
+    case x 
+        of a -> \y : () -> cons.(b.(), nil.())
+        of _ -> nil.();
+
+P = out!(fun (b.())) -> STOP
+
+assert {} |- P : Proc(T) -- should succeed
+
+fun_bad = \x: A -> 
+    case x 
+        of a -> \y : () -> cons.(b.(), nil.())
+        of _ -> b.();
+
+Q = out!(fun_bad (b.())) -> STOP
+
+assert {} |- Q : Proc(T) -- should fail

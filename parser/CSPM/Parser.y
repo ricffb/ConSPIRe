@@ -66,6 +66,7 @@ import Debug.Trace (traceShow)
       '!'             { Token _ TokenExcl }
       '$'             { Token _ TokenDollar }
       ','             { Token _ TokenComma }
+      '_'             { Token _ TokenHole }
       '|-'            { Token _ TokenVDash }
       assert          { Token _ TokenAssert }
       typevar         { Token _ TokenTypeVar }
@@ -268,8 +269,8 @@ SExpSeq : SExpSeq ',' SExp  { $3 : $1 }
        | {[]}
 
 SCases :: { [SCase] }
-      : SCases of var '->' SExp       { (ECase $3 $5) : $1 }
-      | of var '->' SExp             { [ECase $2 $4] }
+      : SCases of cvar '->' SExp       { (ECase $3 $5) : $1 }
+      | of cvar '->' SExp             { [ECase $2 $4] }
 
 
 Lit   :: { Literal }
@@ -286,9 +287,13 @@ ExpSeq : ExpSeq ',' Exp  { $3 : $1 }
        | Exp ',' Exp     { [$3, $1]} 
 
 
+cvar :: {Maybe String} 
+      : var {Just $1}
+      | '_' {Nothing}
+
 Cases :: { [ECase] }
-      : Cases of var '->'   Exp      { (ECase $3 $5) : $1 }
-      | of var '->'  Exp          { [ECase $2 $4] }
+      : Cases of cvar '->'   Exp      { (ECase $3 $5) : $1 }
+      | of cvar '->'  Exp          { [ECase $2 $4] }
 
 {
 lexwrap :: (Token -> Alex a) -> Alex a

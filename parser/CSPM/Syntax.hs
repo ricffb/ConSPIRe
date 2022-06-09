@@ -98,7 +98,7 @@ type ECase = ECase' Literal Type
 
 type SCase = ECase' SLiteral Type
 
-data ECase' l a = ECase String (TExp'' l a)
+data ECase' l a = ECase (Maybe String) (TExp'' l a)
   deriving (Show, Functor, Foldable, Eq, Ord)
 
 type PCase = PCase' Type
@@ -214,4 +214,5 @@ data TokenClass
   | TokenFold
   | TokenProject
   | TokenDoubleColon
+  | TokenHole
   deriving (Show)

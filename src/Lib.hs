@@ -477,7 +477,9 @@ checkECase chLit t@(TSum ts) (c : cs) = do
       ct <- checkCase cs
       typeMerge "exp case" ct ty
     checkCase :: ECase' l Type -> Check Type
-    checkCase (ECase ident exp)
+    checkCase (ECase Nothing exp) = do
+      checkExp' chLit exp
+    checkCase (ECase (Just ident) exp)
       | Just ty <- lookup ident ts =
         checkExp' chLit exp
           >>= ( \case
