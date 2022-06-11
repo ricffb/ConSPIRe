@@ -75,6 +75,7 @@ import Debug.Trace (traceShow)
 
 
 %nonassoc let if '|' var '::'
+%right ARROWTYPE
 %right '->'
 %left '\\'
 %left '|~|'
@@ -113,7 +114,7 @@ TypeBody :: { Type }
 TypeBody    : T_Product    { TProd $1 }
             | T_Sum        { TSum $ reverse $1}
             | '\\' name '->' TypeBody { TInd $2 $4 }
-            | TypeBody '->' TypeBody { TFun $1 $3}
+            | TypeBody '->' TypeBody %prec ARROWTYPE { TFun $1 $3}
             | name         { TVar $1 }
             | '(' TypeBody ')' {$2}
 
@@ -224,7 +225,6 @@ Exp   : '(' RawExp ')' {TExp $2 Nothing}
 
 RawExp :: {Exp}
 RawExp : Exp '==' Exp                { Eq $1 $3 }
-      | Lit                         { Lit $1 }
       | let var '=' Exp within Exp  { LetExp $2 $4 $6 }
       | let rec var '::' TypeBody '=' Exp within Exp { LetRecExp $3 $5 $7 $9 }
       | if Exp then Exp else Exp    { IteExp $2 $4 $6 }
@@ -232,6 +232,7 @@ RawExp : Exp '==' Exp                { Eq $1 $3 }
       -- | '(' RawExp ')'              { $2 }
       | '(' ')'                     { Tuple [] }
       | Exp Exp %prec APP           { App $1 $2 }
+      | Lit                         { Lit $1 }
       | '\\' var ':' TypeBody '->' Exp  { ELambda $2 $4 $6 }
       | case Exp Cases              { ECaseExpr $2 $3 }
       | var '.' Exp                 { Sum $1 $3 }
