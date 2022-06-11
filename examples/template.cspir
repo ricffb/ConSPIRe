@@ -1,0 +1,32 @@
+
+datatype MSG = Int
+
+template name<T> {
+
+datatype L_T = \L -> nil.() | cons.T.L
+datatype Maybe_TPL_T_L_T = nothig.() | just.T.L_T
+datatype Maybe_L_T = nothig.() | just.L_T
+
+tail_L_T = (\ys: L_T -> case (fold ys tailReducer_L_T) :: Maybe_TPL_T_L_T
+    of just -> \tpl: T.L_T -> just.(pr 2 tpl)
+    of _ -> nothig.()) :: L_T -> Maybe_L_T;
+
+tailReducer_L_T = \xs: nil.() | cons.T.Maybe_TPL_T_L_T -> 
+    case xs 
+        of cons -> \y : T.Maybe_TPL_T_L_T ->
+            let m = pr 1 y within
+            let maybe_tpl = pr 2 y within
+            case maybe_tpl
+                of nothig -> \n : () -> just.(m, nil.())
+                of just -> \tpl : T.L_T ->  
+                    let prev_m = pr 1 tpl within
+                    let ls = pr 2 tpl within
+                    let ls_new = cons.(prev_m, ls) :: L_T within
+                        just.(m, ls_new)
+        of _ -> nothig.();
+
+}
+
+instanciate name<MSG>;
+
+-- This is not yet supported, but would be a very cool feature

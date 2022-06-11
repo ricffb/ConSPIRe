@@ -1,0 +1,86 @@
+datatype Ls = \L -> nil.() | cons.Bool.L
+
+datatype T = out.IB
+datatype IB = Int.Bool
+
+e1 = cons.(true, cons.(false, nil.()));
+
+fun = \xs : nil.() | cons.Bool.(Int.Bool) ->
+    case xs of 
+        cons -> \y : (Bool.(Int.Bool)) -> 
+        let b1 = pr 1 y within
+        let tpl = pr 2 y within
+        let i = pr 1 tpl within
+        let b2 = pr 2 tpl within (i, b1);
+
+P = let tpl = (fold e1 fun) within out!(pr 1 tpl)!(pr 2 tpl) -> STOP 
+
+-- assert {} |- P : Proc(T)
+datatype MSG = Int
+datatype L_MSG = \L -> nil.() | cons.MSG.L
+datatype Maybe_TPL_MSG_L_MSG = nothig.() | just.MSG.L_MSG
+datatype Maybe_L_MSG = nothig.() | just.L_MSG
+datatype Maybe_MSG = nothig.() | just.MSG
+datatype QT = out.L_MSG
+
+e = cons.(1, nil.()) :: L_MSG;
+
+safeHead_L_MSG = \xs: nil.() | cons.MSG.Maybe_MSG ->
+    case xs 
+        of nil -> \y: () -> nothig.()
+        of cons -> \tpl: MSG.Maybe_MSG -> just.(pr 1 tpl);
+
+tail_L_MSG = (\ys: L_MSG -> case (fold ys tailReducer_L_MSG) :: Maybe_TPL_MSG_L_MSG
+    of just -> \tpl: MSG.L_MSG -> just.(pr 2 tpl)
+    of _ -> nothig.()) :: L_MSG -> Maybe_L_MSG;
+
+tailReducer_L_MSG = \xs: nil.() | cons.MSG.Maybe_TPL_MSG_L_MSG -> 
+    case xs 
+        of cons -> \y : MSG.Maybe_TPL_MSG_L_MSG ->
+            let m = pr 1 y within
+            let maybe_tpl = pr 2 y within
+            case maybe_tpl
+                of nothig -> \n : () -> just.(m, nil.())
+                of just -> \tpl : MSG.L_MSG ->  
+                    let prev_m = pr 1 tpl within
+                    let ls = pr 2 tpl within
+                    let ls_new = cons.(prev_m, ls) :: L_MSG within
+                        just.(m, ls_new)
+        of _ -> nothig.();
+
+remElement_L_MSG = \rem: MSG -> \xs: (nil.() | cons.MSG.L_MSG) ->
+    case xs
+        of nil -> \y: () -> nil.()
+        of cons -> \tpl: MSG.L_MSG -> 
+            let a = (pr 1 tpl) :: MSG within
+            let li = (pr 2 tpl) :: L_MSG within
+            if a == rem then li else cons.(a, li); 
+            
+rec union_L_MSG :: L_MSG -> (L_MSG -> L_MSG) = \xs: L_MSG -> \ys: L_MSG ->
+    case fold xs safeHead_L_MSG 
+        of just -> \y: MSG -> (union_L_MSG (fold xs (remElement_L_MSG y))) (cons.(y, ys))
+        of nothig -> \y: () -> ys;
+
+
+rec app_L_MSG :: L_MSG -> (L_MSG -> L_MSG) = \xs: L_MSG -> \ys: L_MSG ->
+    case fold xs safeHead_L_MSG 
+        of just -> \y: MSG -> 
+            let maybe_tl = tail_L_MSG xs within
+            case maybe_tl
+                of just -> \tl : L_MSG -> (app_L_MSG tl) (cons.(y, ys))
+                of _ -> cons.(y, ys)
+        of nothig -> \y: () -> ys;
+
+Q = out!(union_L_MSG e e) -> STOP 
+
+assert {} |- Q : Proc(QT)
+
+
+
+-- Error TypeMismatch in fold: expected type
+-- {nil.() | cons.(Int.{just.(Int.{nil.()}) | just.(Int.{cons.(Int.\"L" -> {nil.() | cons.(Int."L")})}) | nothig.()})}
+--  could not be matched with actual type
+-- {nil.() | cons.(Int.{nothig.() | just.(Int.\"L" -> {nil.() | cons.(Int."L")})})}
+-- 
+-- 
+-- on the actual type side the inductive type needs to be expanded in order to work here. TODO: Look at this in Subsume relation
