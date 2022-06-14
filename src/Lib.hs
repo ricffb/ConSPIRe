@@ -388,10 +388,18 @@ checkExp' chLit texp@(TExp exp assertTy) = case exp of
         funT <- checkExp fun
         case funT of
           TFun dom img ->
-            let tu = fromMaybe (t </ var $ img) assertTy
-             in if dom <| tu
+            case assertTy of
+              Nothing -> let tu = (t </ var $ img) 
+                in if dom <| tu
                   then return img
                   else throwError $ TypeMismatch "fold" tu dom
+              Just aty -> 
+                if img <| aty 
+                then let tu = (t </ var $ aty)
+                  in if dom <| tu
+                     then return aty
+                     else throwError $ TypeMismatch "fold" tu dom
+                else throwError $ TypeMismatch "fold asserted type" aty img
           _ -> throwError $ NotFunction funT
       _ -> undefined
   ---
