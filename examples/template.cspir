@@ -1,32 +1,43 @@
+define(`Maybe',`Maybe_$1')
+define(`List',`L_$1')
+define(`asList', `ifelse(`$#', `0', `nil.()', `$#', `1', `cons.($1, `nil.()')', `cons.($1, asList(shift($@)))')')
+define(`tail', `tail_L_$1')
+define(`mk_List', `ifdef(`__mk_list_$1', `', `_mk_List($1)')')
+define(`_mk_List', `
+datatype L_$1 = \L -> nil.() | cons.$1.L
+datatype Maybe_TPL_$1_L_$1 = nothig.() | just.$1.L_$1
+datatype Maybe_L_$1 = nothig.() | just.L_$1
 
-datatype MSG = Int
+tail_L_$1 = (\ys: L_$1 -> case (fold tailReducer_L_$1 ys) :: Maybe_TPL_$1_L_T
+    of just -> \tpl: $1.L_$1 -> just.(pr 2 tpl)
+    of _ -> nothig.()) :: L_$1 -> Maybe_L_$1;
 
-template name<T> {
-
-datatype L_T = \L -> nil.() | cons.T.L
-datatype Maybe_TPL_T_L_T = nothig.() | just.T.L_T
-datatype Maybe_L_T = nothig.() | just.L_T
-
-tail_L_T = (\ys: L_T -> case (fold ys tailReducer_L_T) :: Maybe_TPL_T_L_T
-    of just -> \tpl: T.L_T -> just.(pr 2 tpl)
-    of _ -> nothig.()) :: L_T -> Maybe_L_T;
-
-tailReducer_L_T = \xs: nil.() | cons.T.Maybe_TPL_T_L_T -> 
+tailReducer_L_$1 = \xs: nil.() | cons.$1.Maybe_TPL_$1_L_$1 -> 
     case xs 
-        of cons -> \y : T.Maybe_TPL_T_L_T ->
+        of cons -> \y : $1.Maybe_TPL_$1_L_$1 ->
             let m = pr 1 y within
             let maybe_tpl = pr 2 y within
             case maybe_tpl
                 of nothig -> \n : () -> just.(m, nil.())
-                of just -> \tpl : T.L_T ->  
+                of just -> \tpl : $1.L_$1 ->  
                     let prev_m = pr 1 tpl within
                     let ls = pr 2 tpl within
-                    let ls_new = cons.(prev_m, ls) :: L_T within
+                    let ls_new = cons.(prev_m, ls) :: L_$1 within
                         just.(m, ls_new)
         of _ -> nothig.();
 
-}
+define(`__mk_list_$1', `')
+')
 
-instanciate name<MSG>;
 
--- This is not yet supported, but would be a very cool feature
+datatype MSG = Int
+
+mk_List(MSG)
+
+datatype T = out.Maybe(List(MSG))
+
+e1 = asList(1, 2, 3);
+P = out!(tail(MSG) e1) -> STOP
+
+assert {} |- P : Proc( T )
+-- Utilize GNU m4 Preprocessing Language

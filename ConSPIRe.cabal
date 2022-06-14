@@ -20,6 +20,7 @@ extra-source-files:
     ChangeLog.md
     parser/CSPM/Parser.y
     parser/CSPM/Lexer.x
+    stdlib/stdlib.cspir
 
 source-repository head
   type: git

@@ -1,0 +1,13 @@
+include(`stdlib.cspir')
+
+datatype MSG = Int
+
+instanciateList(MSG)
+
+datatype T = out.Maybe(List(MSG))
+
+e1 = asList(1, 2, 3);
+P = out!tail(MSG) e1 -> STOP
+
+assert {} |- P : Proc( T )
+-- Utilize GNU m4 Preprocessing Language

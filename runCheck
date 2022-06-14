@@ -1,0 +1,6 @@
+#!/usr/bin/sh
+
+STDLIB="stdlib"
+
+m4 -I $STDLIB $1 > $1.pp
+stack run -- $1.pp
