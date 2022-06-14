@@ -1,0 +1,65 @@
+define(`Maybe',`Maybe_$1')dnl
+define(`List',`L_$1')dnl
+define(`asList', `ifelse(`$#', `0', `nil.()', `$#', `1', `cons.($1, `nil.()')', `cons.($1, asList(shift($@)))')')dnl
+define(`tail', `tail_L_$1')dnl
+define(`union', `union_L_$1')dnl
+define(`app', `app_L_$1')dnl
+define(`safeHead', `safeHead_L_$1')dnl
+define(`remElement', `remElement_L_$1')dnl
+define(`instanciateList', `ifdef(`__instance_List_$1', `', `_instanciateList($1)')')dnl
+define(`_instanciateList', `
+datatype L_$1 = \L -> nil.() | cons.$1.L
+datatype Maybe_TPL_$1_L_$1 = nothig.() | just.$1.L_$1
+datatype Maybe_L_$1 = nothig.() | just.L_$1
+datatype Maybe_$1 = nothing.() | just.$1
+
+remElement_L_$1 = \rem: $1 -> \xs: (nil.() | cons.$1.L_$1) ->
+    case xs
+        of nil -> \y: () -> nil.()
+        of cons -> \tpl: $1.L_$1 -> 
+            let a = (pr 1 tpl) :: $1 within
+            let li = (pr 2 tpl) :: L_$1 within
+            if a == rem then li else cons.(a, li); 
+
+safeHead_L_$1 = \xs: nil.() | cons.$1.Maybe_$1 ->
+    case xs 
+        of nil -> \y: () -> nothig.()
+        of cons -> \tpl: $1.Maybe_$1 -> just.(pr 1 tpl);
+
+tail_L_$1 = (\ys: L_$1 -> case (fold ys tailReducer_L_$1) :: Maybe_TPL_$1_L_$1
+    of just -> \tpl: $1.L_$1 -> just.(pr 2 tpl)
+    of _ -> nothig.()) :: L_$1 -> Maybe_L_$1;
+
+tailReducer_L_$1 = \xs: nil.() | cons.$1.Maybe_TPL_$1_L_$1 -> 
+    case xs 
+        of cons -> \y : $1.Maybe_TPL_$1_L_$1 ->
+            let m = pr 1 y within
+            let maybe_tpl = pr 2 y within
+            case maybe_tpl
+                of nothig -> \n : () -> just.(m, nil.())
+                of just -> \tpl : $1.L_$1 ->  
+                    let prev_m = pr 1 tpl within
+                    let ls = pr 2 tpl within
+                    let ls_new = cons.(prev_m, ls) :: L_$1 within
+                        just.(m, ls_new)
+        of _ -> nothig.();
+
+rec union_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \xs: L_$1 -> \ys: L_$1 ->
+    case fold xs safeHead($1) 
+        of just -> \y: $1 -> (union($1) (fold xs (remElement($1) y))) (cons.(y, ys))
+        of nothig -> \y: () -> ys;
+
+
+rec app_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \xs: L_$1 -> \ys: L_$1 ->
+    case fold xs safeHead($1)
+        of just -> \y: $1 -> 
+            let maybe_tl = tail_L_$1 xs within
+            case maybe_tl
+                of just -> \tl : L_$1 -> (app($1) tl) (cons.(y, ys))
+                of _ -> cons.(y, ys)
+        of nothig -> \y: () -> ys;
+
+empty_L_$1 = nil.() :: L_$1;
+
+define(`__instance_List_$1', `')dnl
+')dnl
