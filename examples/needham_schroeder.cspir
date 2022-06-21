@@ -1,4 +1,6 @@
-datatype USR = a.() | b.()
+include(`stdlib.cspir')
+
+datatype USR = a.() | b.() | i.()
 datatype KEY = ska.() | skb.() | pka.() | pkb.() | ski.() | pki.()
 typevar NONCE
 datatype MSG = \M -> nonce.NONCE | key.KEY | enc.KEY.M | user.USR | sq.(\L -> nil.() | cons.M.L)
@@ -6,11 +8,13 @@ datatype T = send.USR.USR.MSG | recv.USR.USR.MSG | running.USR.USR.NONCE | commi
 
 sk = \u : USR -> case u 
     of a -> \y : () -> ska.()
-    of b -> \y : () -> skb.();
+    of b -> \y : () -> skb.()
+    of i -> \y : () -> ski.();
 
 pk = \u : USR -> case u 
     of a -> \y : () -> pka.()
-    of b -> \y : () -> pkb.();
+    of b -> \y : () -> pkb.()
+    of i -> \y : () -> pki.();
 
 dual = \k : KEY -> 
     case k
@@ -19,7 +23,7 @@ dual = \k : KEY ->
      of skb -> \y : () -> pkb.()
      of pkb -> \y : () -> skb.()
      of ski -> \y : () -> pki.()
-     of pki -> \y : () -> ski.()
+     of pki -> \y : () -> ski.();
 
 Initiator(self: USR) = |~| b: USR @ |~| na: NONCE @
         send!self!b!enc.(pk b, sq.(cons.(nonce.na, cons.(user.self, nil.()))))
@@ -54,92 +58,12 @@ assert {} |- Impl : Proc(T)
 -- Add an Intruder --
 ---------------------
 
-datatype L_MSG = \L -> nil.() | cons.MSG.L
-datatype FACT = L_MSG.MSG
-datatype L_FACT = \L1 -> nil.() | cons.FACT.L1 
+instanciateList(MSG)
+instanciateList(FACT)
+instanciateList(Bool)
 
-
---------------------
--- List Functions --
---------------------
-
-datatype Maybe_FACT = nothing.() | just.FACT
-
-remElement_L_FACT = \rem: FACT -> \xs: (nil.() | cons.FACT.L_FACT) ->
-    case xs
-        of nil -> \y: () -> nil.()
-        of cons -> \tpl: FACT.L_FACT -> 
-            let a = (pr 1 tpl) :: FACT within
-            let li = (pr 2 tpl) :: L_FACT within
-            if a == rem then li else cons.(a, li); 
-
-safeHead_L_FACT = \xs: nil.() | cons.FACT.Maybe_FACT ->
-    case xs 
-        of nil -> \y: () -> nothig.()
-        of cons -> \tpl: FACT.Maybe_FACT -> just.(pr 1 tpl);
-
-rec union_L_FACT :: L_FACT -> (L_FACT -> L_FACT) = \xs: L_FACT -> \ys: L_FACT ->
-    case fold xs safeHead_L_FACT
-        of just -> \y: MSG -> (union (fold xs (remElement_L_FACT y))) (cons.(y, ys))
-        of nothig -> \y: () -> ys;
-
-empty_L_FACT = nil.() :: L_FACT;
-
----------
-
-datatype Maybe_MSG = nothing.() | just.MSG
-datatype Maybe_L_MSG = nothing.() | just.L_MSG
-
-remElement_L_MSG = \rem: MSG -> \xs: (nil.() | cons.MSG.L_MSG) ->
-    case xs
-        of nil -> \y: () -> nil.()
-        of cons -> \tpl: MSG.L_MSG -> 
-            let a = (pr 1 tpl) :: MSG within
-            let li = (pr 2 tpl) :: L_MSG within
-            if a == rem then li else cons.(a, li); 
-
-safeHead_L_MSG = \xs: nil.() | cons.MSG.Maybe_MSG ->
-    case xs 
-        of nil -> \y: () -> nothig.()
-        of cons -> \tpl: MSG.Maybe_MSG -> just.(pr 1 tpl);
-
-datatype Maybe_TPL_MSG_L_MSG = nothig.() | just.(MSG.L_MSG)
-
-tail_L_MSG = (\ys: L_MSG -> case (fold ys tailReducer_L_MSG) :: Maybe_TPL_MSG_L_MSG
-    of just -> \tpl: MSG.L_MSG -> just.(pr 2 tpl)
-    of _ -> nothig.()) :: L_MSG -> Maybe_L_MSG;
-
-tailReducer_L_MSG = \xs: nil.() | cons.MSG.Maybe_TPL_MSG_L_MSG -> 
-    case xs 
-        of cons -> \y : MSG.Maybe_TPL_MSG_L_MSG ->
-            let m = pr 1 y within
-            let maybe_tpl = pr 2 y within
-            case maybe_tpl
-                of nothig -> \n : () -> just.(m, nil.())
-                of just -> \tpl : MSG.L_MSG ->  
-                    let prev_m = pr 1 tpl within
-                    let ls = pr 2 tpl within
-                    let ls_new = cons.(prev_m, ls) :: L_MSG within
-                        just.(m, ls_new)
-        of _ -> nothig.();
-
-
-rec union_L_MSG :: L_MSG -> (L_MSG -> L_MSG) = \xs: L_MSG -> \ys: L_MSG ->
-    case fold xs safeHead_L_MSG 
-        of just -> \y: MSG -> (union_L_MSG (fold xs (remElement_L_MSG y))) (cons.(y, ys))
-        of nothig -> \y: () -> ys;
-
-
-rec app_L_MSG :: L_MSG -> (L_MSG -> L_MSG) = \xs: L_MSG -> \ys: L_MSG ->
-    case fold xs safeHead_L_MSG 
-        of just -> \y: MSG -> 
-            let maybe_tl = tail_L_MSG xs within
-            case maybe_tl
-                of just -> \tl : L_MSG -> (app_L_MSG tl) (cons.(y, ys))
-                of _ -> cons.(y, ys)
-        of nothig -> \y: () -> ys;
-
-empty_L_MSG = nil.() :: L_MSG;
+define(`substMSG', `nonce.NONCE | key.KEY | enc.KEY.$1 | user.USR | sq.(define(`loc', format(`L_subst_%d', ctr(`substMSG_Ctr')))\loc -> nil.() | cons.$1.loc undefine(`loc'))')
+datatype FACT = List(MSG).MSG
 
 ------------------------
 -- End List Functions --
@@ -147,178 +71,117 @@ empty_L_MSG = nil.() :: L_MSG;
 
 asMsgList = \m : MSG -> (cons.(m, nil.())) :: L_MSG;   
 
--- Reduce an msg := sq.[m1, ..., mn] to [(msg, mj) | j<-1..n]
--- MSG -> [MSG] -> MSG -> L_FACT
-sqReducer = \outerMessage: MSG -> \xs : nil.() | cons.MSG.L_FACTS ->
-    case xs of nil.() -> \y: () -> nil.()
-            of cons -> \tpl : MSG.L_FACTS ->
-                let m = pr 1 tpl within 
-                let l = pr 2 tpl within
-                cons.((asMsgList outerMessage, m), l);
-
--- MSG -> L_FACT
-msgReducer = \xs : \M -> nonce.NONCE | key.KEY | enc.KEY.M | user.USR | sq.(\L -> nil.() | cons.MSG.L)
-
-duduce = \xs : nil.() | cons.MSG.L_FACT -> 
-    case xs of nil -> \y : () -> nil.()
-            of cons -> \tpl : MSG.L_FACT ->
-                let m = pr 1 tpl within 
-                let l = pr 2 tpl within
-                case m
-                    of sq -> 
-                        \y: L_MSG -> let newFacts = fold y (sqReducer m) within cons.(newFacts, l)
-                    of enc ->
-                        \y: KEY.MSG -> 
-
-
-isSq = \xs : nonce.NONCE | key.KEY | enc.KEY.Bool | user.USR | sq.(\L_isSq -> nil.() | cons.Bool.L_isSq) ->
-    case xs
-        of sq : \y: (\L_isSq_case -> nil.() | cons.Bool.\L_isSq_case) -> True
-        of _ -> False;
-
-filterSqMsgs = \xs : nil.() | cons.MSG.L_MSG -> 
-    case xs 
-        of nil : \y : () -> nil.()
-        of cons : \tpl : MSG.L_MSG ->
-            let m = pr 1 tpl within 
-            let l = pr 2 tpl within
-                if (fold m isSq) then cons.(m, l) else l;
-
-
-appReduce_L_L_MSG = \xs : cons.L_MSG.L_MSG | nil.() ->
-    case xs 
-        of cons -> \tpl : L_MSG.L_MSG -> 
-            let acc = pr 2 tpl within
-            let ls = pr 1 tpl within
-            app_L_MSG ls acc
-        of _ -> nil.();
-            
-
--- assumes that the messages top level constructor is sq (e.g. by use of isSq)
-getSqBody = \xs : nonce.NONCE | key.KEY | enc.KEY.L_MSG | user.USR | sq.(\L_getSqBody -> nil.() | cons.L_MSG.L_getSqBody) ->
-    case xs
-        of nonce -> \y : NONCE -> (asMsgList nonce.y)
-        of key -> \y : KEY -> (asMsgList key.y)
-        of enc -> \y : KEY.L_MSG -> 
-            let k = pr 1 y within
-            let lmsg = pr 2 y within 
-            let el = fold lmsg safeHead_L_MSG within
-            case el 
-                of just -> \y : MSG -> (asMsgList (enc.(k, y)))
-                of _ -> nil.()
-        of user -> \y : USR -> (asMsgList user.y)
-        of sq -> \y : (\L_getSqBody_case -> nil.() | cons.L_MSG.L_getSqBody_case) -> (fold y appReduce_L_L_MSG) :: L_MSG
-
-mapSqReducerUnionReduce_L_MSG = \xs : nil.() | cons.MSG.L_FACT -> 
-    case xs
-        of cons -> \tpl : MSG.L_FACT -> 
-            let msg = pr 1 tpl within
-            let ls = pr 2 tpl within 
-            let body = (fold msg getSqBody) :: L_MSG within
-            let facts = (fold body (sqReducer msg) ) :: L_FACT within
-            union_L_FACT facts ls
-    case _ -> nil.();
-
-mapReassembleSqFromBody_L_MSG = \xs : nil.() | cons.MSG.L_FACT ->
-    case xs
-        of cons -> \tpl : MSG.L_FACT -> 
-            let msg = pr 1 tpl within
-            let ls = pr 2 tpl within 
-            let body = (fold msg getSqBody) :: L_MSG within
-            let fact = cons.((body, msg), nil.()) :: L_FACT within
-            union_L_FACT fact ls
-        of _ -> nil.();
-
--- Assemble and Dissasemble Sq Messages
-deductions1 = \xs: L_MSG ->
-    let list_sqs = (fold xs filterSqMsgs) :: L_MSG within 
-    let deconstructSqFacts = fold list_sqs mapSqReducerUnionReduce_L_MSG within
-    let constructionFact = fold list_sqs mapReassembleSqFromBody within
-    union_L_FACT constructionFact deconstructSqFacts;
 
 datatype TPL_L_FACT_MSG = L_FACT.MSG 
-
-caseSplitEnc = \m : nonce.NONCE | key.KEY | enc.KEY.TPL_L_FACT_MSG | user.USR | sq.(\L_caseSplitEnc -> nil.() | cons.TPL_L_FACT_MSG.L_caseSplitEnc) ->
-    case m
-        of nonce -> \y : NONCE -> (nil.(), nonce.y)
-        of key -> \y : KEY -> (nil.(), key.y)
-        of user -> \y : USR -> (nil.(), user.USR)
-        of enc -> \tpl : KEY.TPL_L_FACT_MSG -> 
-            let k = pr 1 tpl within
-            let ftpl = pr 2 tpl within
-            let msg = pr 2 ftpl within
-            let encrypt = (cons.(k, cons.(msg, nil.())), enc.(k, msg)) within
-            let decrypt = (cons.(enc.(k, msg), cons.(dual k, nil.())), msg) within
-            (cons.(encrypt, cons.(decrypt, nil.())), enc.tpl)
-        of sq -> \ls : \L_caseSplitEnc_case -> nil.() | cons.TPL_L_FACT_MSG.L_caseSplitEnc_case -> (nil.(), fold ls sndPick);
-
-sndPick = \xs: nil.() | cons.TPL_L_FACT_MSG.L_MSG ->
-    case xs 
-        of cons -> \tpl : TPL_L_FACT_MSG.L_MSG ->
-            let mtpl = pr 1 tpl within
-            let m = pr 2 mtpl within
-            let ls = pr 2 tpl within
-            cons.(m, ls)
-        _ -> nil.();
-
-mapUnionFactsFromEnc = \xs: nil.() | cons.MSG.L_FACT -> 
-    case xs
-        of cons -> \tpl : MSG.L_FACT ->
-            let m = pr 1 tpl within
-            let ls = pr 2 tpl within 
-            let factsFromMsg = (fold m caseSplitEnc) :: L_FACT within
-            let fs = pr 1 factsFromMsg within union_L_FACT fs ls
-        of _ -> empty_L_FACT;
-
--- Encrypt and Decrypt Messages
-deductions2 = \xs: L_MSG -> (fold xs mapUnionFactsFromEnc) :: L_FACT;
-
-deductions = \xs: L_MSG -> 
-    let d1 = deductions1 xs within
-    let d2 = deductions2 xs within
-    union_L_FACT d1 d2;
-
 datatype TPL_L_MSG_MSG = L_MSG.MSG
 datatype TPL_L_MSG_L_MSG = L_MSG.L_MSG
 
 -- fold helper: Accumulates the sub explode sets and the original sq message sequence
-unionSnd = \ls : nil.() | cons.TPL_L_MSG_MSG.TPL_L_MSG_L_MSG ->
+unionSnd = \ls : nil.() | cons.Tuple(List(MSG), MSG).Tuple(List(MSG), List(MSG)) ->
     case ls
-        of cons -> \ttpl : TPL_L_MSG_MSG.TPL_L_MSG_L_MSG ->
+        of cons -> \ttpl : Tuple(List(MSG), MSG).Tuple(List(MSG), List(MSG)) ->
             let tpl = pr 1 ttpl within
             let accTpl = pr 2 ttpl within -- accumulator tuple for this fold
             let msg = pr 2 tpl within
             let explodeAcc = pr 1 tpl within -- accumulator produced by explode
             let sqls = pr 2 accTpl within 
             let acc = pr 1 accTpl within -- acummulator list
-            let rsqls = cons.(msg, sqls) within -- collect the message reconstructing the original sq
-            let racc = union_L_MSG acc explodeAcc within
-            (racc, rsqls)
+            let rsqls = (cons.(msg, sqls)) :: List(MSG) within -- collect the message reconstructing the original sq
+            let racc = (union(MSG) acc explodeAcc) :: List(MSG) within
+            (racc, rsqls) :: Tuple(List(MSG), List(MSG))
         of _ -> (nil.(), nil.());
 
--- Separate a MSG into Facts (All Submessages)
-explode = \m : m : nonce.NONCE | key.KEY | enc.KEY.TPL_L_MSG_MSG | user.USR | sq.(\L_explode -> nil.() | cons.TPL_L_MSG_MSG.L_explode)
+
+expandCaseSplitMsg = \xs : List(MSG) -> \m: substMSG(Tuple(List(MSG),MSG)) -> 
     case m
-        of nonce -> \y: NONCE -> (asMsgList nonce.y, nonce.y)
-        of key   -> \y: KEY   -> (asMsgList key.y, key.y)
-        of user  -> \y: USR   -> (asMsgList user.y, user.y)
-        of enc   -> \tpl: KEY.TPL_L_MSG_MSG ->
-            let k = pr 1 tpl within
-            let ltpl = pr 2 tpl within
-            let ls = pr 1 ltpl within
-            let msg = pr 2 ltpl within 
-            let es = cons.(key.k, cons.(enc.msg, ls)) within (es, enc.msg)
-        of sq    -> \ys:  \L_explode_case -> nil.() | cons.TPL_L_MSG_MSG.L_explode_case ->
-            let reconstrTpl = (fold ys unionSnd) :: TPL_L_MSG_MSG within
+        of enc -> \y : KEY.Tuple(List(MSG), MSG) -> 
+            let k = pr 1 y within 
+            let tpl = pr 2 y within
+            let msg = pr 2 tpl within
+            let acc = pr 1 tpl within
+            let reconstr = (enc.(k, msg)) :: MSG within
+            let nxs = (cons.(reconstr, xs)) :: List(MSG) within
+            let bkp_tpl = (nxs, reconstr) :: Tuple(List(MSG), MSG) within
+            if (elem(MSG) key.(dual k) xs) then (union(MSG) acc nxs, reconstr) else bkp_tpl
+        of key -> \y : KEY -> (cons.(key.y, xs), key.y) :: Tuple(List(MSG), MSG)
+        of user -> \y : USR -> (cons.(user.y, xs), user.y) :: Tuple(List(MSG), MSG)
+        of nonce -> \y : NONCE -> (cons.(nonce.y, xs), nonce.y) :: Tuple(List(MSG), MSG)
+        of sq -> \ys : AnonList(Tuple(List(MSG), MSG)) ->
+            let reconstrTpl = (fold ys unionSnd) :: Tuple(List(MSG), List(MSG)) within
             let acc = pr 1 reconstrTpl within
-            let ms = pr 2 reconstrTpl within
-            (acc, sq.ms);
+            let ms = pr 2 reconstrTpl within (union(MSG) acc xs, sq.ms) :: Tuple(List(MSG), MSG);
 
--- fold over Messages 
 
--- Ideen um {m <- messages} zu umgehen
+rec expand :: List(MSG) -> List(MSG) = \xs : List(MSG) -> 
+    let foldMsg = \m : MSG -> fold m (expandCaseSplitMsg xs) within
+    let unionReducer = \m: MSG -> \a: List(MSG) -> let acc = pr 1 (foldMsg m) within union(MSG) acc a within
+    let new_xs = ((listReduce(MSG, List(MSG)) xs) nil.()) unionReducer within
+    if (diff(MSG) new_xs) xs == empty(MSG) then new_xs else expand new_xs;
 
--- Process offers deductions. Spy has knowledge. if the deduction can be obtained from the
--- knowledge, then the Spy may perform the action
+instanciateTuple(Bool, MSG)
+instanciateTuple(Bool, List(MSG))
 
--- Orcale function yielding the useful deductions "magically"
+deducibleCaseSplit = \m: MSG -> \db : List(MSG) -> let resultTpl = fold m (foldDeducibleCaseSplit db) within pr 1 resultTpl;
+
+foldDeducibleCaseSplit = \db: List(MSG) -> \m : substMSG(Tuple(Bool, MSG)) ->
+    case m
+        of enc -> \y : KEY.Tuple(Bool, MSG) -> 
+            let k = pr 1 y within
+            let tpl = pr 2 y within
+            let b = pr 1 tpl within
+            let msg = pr 2 tpl within 
+            ((elem(MSG) (enc.(k, msg)) db) or (elem(MSG) key.k db and b), enc.(k, msg)) :: Tuple(Bool, MSG)
+        of nonce -> \n : NONCE -> ((elem(MSG) nonce.n db), nonce.n) :: Tuple(Bool, MSG)
+        of user -> \u : USR -> ((elem(MSG) user.u db), user.u) :: Tuple(Bool, MSG)
+        of key -> \k : KEY -> ((elem(MSG) key.k db), key.k) :: Tuple(Bool, MSG)
+        of sq -> \ys: AnonList(Tuple(Bool, MSG)) -> 
+        let redTpl = ((listReduce_(Tuple(Bool, MSG), Tuple(Bool, List(MSG))) ys) 
+                        (true, (nil.())) ) 
+                        (\x: Tuple(Bool, MSG) -> \y: Tuple(Bool, List(MSG)) -> ((pr 1 x) and (pr 1 y), (cons.(pr 2 x, pr 2 y)))) within 
+        let checkResult = pr 1 redTpl within
+        let msgList = pr 2 redTpl within 
+        (checkResult, sq.msgList) :: Tuple(Bool, MSG);
+ 
+isDeducible = \m: MSG -> \knwldg: List(MSG) -> let db = expand knwldg within deducibleCaseSplit m db;
+
+initialKnowledge = (asList(key.(ski.()), key.(pki.()), key.(pkb.()), key.(pka.()))) :: List(MSG);
+
+Spy(knowledge: List(MSG)) = SpyHear(knowledge) ||| SpySay(knowledge)  
+
+SpySay(knowledge: List(MSG)) = (|~|m:MSG @ ((isDeducible m) knowledge) & SpyFake(m, knowledge)) 
+                            |||
+                               (SpySay(knowledge))
+
+SpyFake(m: MSG, knwoledge: List(MSG)) = send?from?to!m -> Spy(knowledge) ||| recv?from?to!m -> Spy(knowledge)
+
+SpyHear(knowledge: List(MSG)) = send?from?to?m -> let newKnowledge = cons.(m, knowledge) within Spy(newKnowledge)
+
+HostileImpl = let ua = (a.()) :: USR within
+              let ub = (b.()) :: USR within
+        (Participant(ua) [| {} |] Participant(ub)) 
+        [| {send.*{USR.USR.MSG}, recv.*{USR.USR.MSG}} |] let init = initialKnowledge :: List(MSG) within Spy(init)
+
+assert {} |- HostileImpl : Proc(T)
+
+RUN(a: USR, b: USR, n: NONCE) = running!a!b!n -> RUN(a, b, n) |~| commit!a!b!n -> RUN(a, b, n)
+
+InjectiveAgreement(a: USR, b: USR, n: NONCE) = running!b!a!n -> RUN(a, b, n)
+
+RunAllExceptRunningCommit(ca: USR, cb: USR, cn: NONCE) =    send?a?b?m -> RunAllExceptRunningCommit(ca, cb, cn) 
+                                                        |~| recv?a?b?m -> RunAllExceptRunningCommit(ca, cb, cn)
+                                                    |~|
+                                                        (|~| n : NONCE @ if n == cn then STOP else 
+                                                            |~| a : USR @ 
+                                                            |~| b : USR @ if a == ca then STOP else
+                                                                          if b == cb then STOP else running!a!b!n -> RunAllExceptRunningCommit(ca, cb, cn))
+                                                    |~|
+                                                        (|~| n : NONCE @ if n == cn then STOP else 
+                                                            |~| a : USR @ 
+                                                            |~| b : USR @ if a == ca then STOP else
+                                                                          if b == cb then STOP else commit!a!b!n -> RunAllExceptRunningCommit(ca, cb, cn))
+
+Spec = let ua = (a.()) :: USR within
+       let ub = (b.()) :: USR within
+       |~| n: NONCE @ InjectiveAgreement(ua, ub, n) ||| RunAllExceptRunningCommit(ua, ub, n)
+
+assert {} |- Spec : Proc( T )
