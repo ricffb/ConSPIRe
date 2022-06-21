@@ -23,8 +23,8 @@ import CSPM.Syntax
 $digit = 0-9
 $alpha = [A-Za-z]
 $validident = [$alpha $digit \_ \']
-@var = [a-z] $validident*
-@name = [A-Z] $validident*
+@var = \_* [a-z] $validident*
+@name = \_* [A-Z] $validident*
 
 tokens :-
   $white+                               ;
@@ -47,6 +47,8 @@ tokens :-
   fold                                  { lex' TokenFold }
   Proc                                  { lex' TokenProc }
   pr                                    { lex' TokenProject }
+  and                                   { lex' TokenAnd }
+  or                                    { lex' TokenOr }
   \_                                    { lex' TokenHole }
   $digit+                               { lex (TokenNum . read) }  
   @var                                  { lex  TokenVar }
@@ -80,6 +82,7 @@ tokens :-
   "<-"                                  { lex' TokenAssign }
   "[|"                                  { lex' TokenParOpen }
   "|]"                                  { lex' TokenParClose }
+  "|||"                                 { lex' TokenInterleave }
   "|-"                                  { lex' TokenVDash }
 
   
@@ -157,6 +160,9 @@ unLex TokenEOF = "<EOF>"
 unLex TokenProject = "pr"
 unLex TokenDoubleColon = "::"
 unLex TokenHole = "_"
+unLex TokenInterleave = "|||"
+unLex TokenAnd = "and"
+unLex TokenOr = "or"
 
 alexEOF :: Alex Token
 alexEOF = do

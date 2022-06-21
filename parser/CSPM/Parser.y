@@ -40,6 +40,8 @@ import Debug.Trace (traceShow)
       '='             { Token _ TokenEq }
       '=='            { Token _ TokenEquals }
       '!='            { Token _ TokenNotEquals }
+      and             { Token _ TokenAnd }
+      or              { Token _ TokenOr }
       '+'             { Token _ TokenPlus }
       '-'             { Token _ TokenMinus }
       '*'             { Token _ TokenTimes }
@@ -58,6 +60,7 @@ import Debug.Trace (traceShow)
       '<-'            { Token _ TokenAssign }
       '[|'            { Token _ TokenParOpen }
       '|]'            { Token _ TokenParClose }
+      '|||'           { Token _ TokenInterleave }
       '@'             { Token _ TokenAmpersat }
       '&'             { Token _ TokenAmpersand }
       ':'             { Token _ TokenColon }
@@ -73,8 +76,7 @@ import Debug.Trace (traceShow)
       datatype        { Token _ TokenDataType }
       Proc            { Token _ TokenProc }
 
-
-%nonassoc let if '|' var '::'
+%nonassoc let if '|' var '::' fold
 %right ARROWTYPE
 %right '->'
 %left '\\'
@@ -85,11 +87,13 @@ import Debug.Trace (traceShow)
 %right PREFIX
 %left '!' '?' '$'
 %right '.'
-%nonassoc '==' '!=' 
+%nonassoc '==' '!='
+%left and or 
 %left '+' '-'
 %left  '*' '/'
-%nonassoc APP
-%left '.'
+%left '(' ')'
+%left APP
+%left DOTEXPR
 %%
 
 Programm :: { Programm }
@@ -164,6 +168,7 @@ PProc :: {Proc}
       | Exp '&' PProc                   { Ite $1 $3 STOP } 
       | PProc ';' PProc                 { Seq $1 $3 }
       | PProc '[|' Set '|]' PProc       { Parallel $3 $1 $5 }
+      | PProc '|||' PProc               { Parallel Set.empty $1 $3}
       | PProc '\\' Set                  { Hide $3 $1 }
       | '|~|' var ':' TypeBody '@' PProc     { ReplIntChoice $2 $4 $6 }
       | '(' PProc ')'                   { $2 }
@@ -218,9 +223,9 @@ ActionS :: { [ActionI] }
 
 {- id.a.b -> TSum "id" -}
 Exp :: {TExp}
-Exp   : '(' RawExp ')' {TExp $2 Nothing}
-      | '(' RawExp ')' '::' TypeBody {TExp $2 (Just $5)}
-      | RawExp {TExp $1 Nothing}
+Exp   : -- '(' RawExp ')' {TExp $2 Nothing}
+      -- | '(' RawExp ')' '::' TypeBody {TExp $2 (Just $5)}
+       RawExp {TExp $1 Nothing}
       | RawExp '::' TypeBody {TExp $1 (Just $3)}
 
 RawExp :: {Exp}
@@ -229,19 +234,21 @@ RawExp : Exp '==' Exp                { Eq $1 $3 }
       | let rec var '::' TypeBody '=' Exp within Exp { LetRecExp $3 $5 $7 $9 }
       | if Exp then Exp else Exp    { IteExp $2 $4 $6 }
       | '(' ExpSeq ')'              { Tuple $ reverse $2 }
-      -- | '(' RawExp ')'              { $2 }
+      | '(' RawExp ')'              { $2 }
       | '(' ')'                     { Tuple [] }
       | Exp Exp %prec APP           { App $1 $2 }
       | Lit                         { Lit $1 }
       | '\\' var ':' TypeBody '->' Exp  { ELambda $2 $4 $6 }
       | case Exp Cases              { ECaseExpr $2 $3 }
-      | var '.' Exp                 { Sum $1 $3 }
+      | var '.' Exp %prec DOTEXPR   { Sum $1 $3 }
       | fold Exp Exp                { Fold $2 $3 }
       | Exp '+' Exp                 { MathOp [$1, $3] }
       | Exp '-' Exp                 { MathOp [$1, $3] }
       | Exp '*' Exp                 { MathOp [$1, $3] }
       | Exp '/' Exp                 { MathOp [$1, $3] }
       | Exp '!=' Exp                { Eq $1 $3 }
+      | Exp and Exp               { IteExp $1 $3 (TExp (Lit (LBool False)) (Just TBool))}
+      | Exp or Exp               { IteExp $1 (TExp (Lit (LBool True)) (Just TBool)) $3}
       | pr number Exp               { Project $2 $3 }
 
 SExp :: {SElem}
@@ -255,9 +262,9 @@ RawSExp   : SExp '==' SExp             { Eq $1 $3 }
       | SExp SExp %prec APP           { App $1 $2 }
       | '\\' var ':' TypeBody '->' SExp  { ELambda $2 $4 $6 }
       | case SExp SCases              { ECaseExpr $2 $3 }
-      | '(' SExpSeq ')'              { Tuple $ reverse $2 }
-      | '(' ')'                     { Tuple [] }
-      | var '.' SExp                 { Sum $1 $3 }
+      | '(' SExpSeq ')'               { Tuple $ reverse $2 }
+      | '(' ')'                       { Tuple [] }
+      | var '.' SExp  %prec DOTEXPR   { Sum $1 $3 }
       | fold SExp SExp                { Fold $2 $3 }
       | SExp '+' SExp                 { MathOp [$1, $3] }
       | SExp '-' SExp                 { MathOp [$1, $3] }

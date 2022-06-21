@@ -215,4 +215,7 @@ data TokenClass
   | TokenProject
   | TokenDoubleColon
   | TokenHole
+  | TokenInterleave
+  | TokenAnd
+  | TokenOr
   deriving (Show)

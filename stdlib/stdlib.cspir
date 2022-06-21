@@ -4,62 +4,88 @@ define(`asList', `ifelse(`$#', `0', `nil.()', `$#', `1', `cons.($1, `nil.()')', 
 define(`tail', `tail_L_$1')dnl
 define(`union', `union_L_$1')dnl
 define(`app', `app_L_$1')dnl
+define(`diff', `diff_L_$1')
+define(`elem', `elem_L_$1')
+define(`empty', `empty_L_$1')
 define(`safeHead', `safeHead_L_$1')dnl
 define(`remElement', `remElement_L_$1')dnl
 define(`instanciateList', `ifdef(`__instance_List_$1', `', `_instanciateList($1)')')dnl
 define(`_instanciateList', `
-datatype L_$1 = \L -> nil.() | cons.$1.L
-datatype Maybe_TPL_$1_L_$1 = nothig.() | just.$1.L_$1
-datatype Maybe_L_$1 = nothig.() | just.L_$1
+datatype L_$1 = \L_var_$1 -> nil.() | cons.$1.L_var_$1
+datatype Maybe_TPL_$1_L_$1 = nothing.() | just.$1.L_$1
+datatype Maybe_L_$1 = nothing.() | just.L_$1
 datatype Maybe_$1 = nothing.() | just.$1
 
-remElement_L_$1 = \rem: $1 -> \xs: (nil.() | cons.$1.L_$1) ->
-    case xs
-        of nil -> \y: () -> nil.()
-        of cons -> \tpl: $1.L_$1 -> 
-            let a = (pr 1 tpl) :: $1 within
-            let li = (pr 2 tpl) :: L_$1 within
+remElement_L_$1 = \rem: $1 -> \__xs: (nil.() | cons.$1.L_$1) ->
+    case __xs
+        of nil -> \__y: () -> nil.()
+        of cons -> \__tpl: $1.L_$1 -> 
+            let a = (pr 1 __tpl) :: $1 within
+            let li = (pr 2 __tpl) :: L_$1 within
             if a == rem then li else cons.(a, li); 
 
-safeHead_L_$1 = \xs: nil.() | cons.$1.Maybe_$1 ->
-    case xs 
-        of nil -> \y: () -> nothig.()
-        of cons -> \tpl: $1.Maybe_$1 -> just.(pr 1 tpl);
+safeHead_L_$1 = \__xs: nil.() | cons.$1.Maybe_$1 ->
+    case __xs 
+        of nil -> \__y: () -> nothing.()
+        of cons -> \__tpl: $1.Maybe_$1 -> just.(pr 1 __tpl);
 
-tail_L_$1 = (\ys: L_$1 -> case (fold ys tailReducer_L_$1) :: Maybe_TPL_$1_L_$1
-    of just -> \tpl: $1.L_$1 -> just.(pr 2 tpl)
-    of _ -> nothig.()) :: L_$1 -> Maybe_L_$1;
+tail_L_$1 = (\__ys: L_$1 -> case (fold __ys tailReducer_L_$1) :: Maybe_TPL_$1_L_$1
+    of just -> \__tpl: $1.L_$1 -> just.(pr 2 __tpl)
+    of _ -> nothing.()) :: L_$1 -> Maybe_L_$1;
 
-tailReducer_L_$1 = \xs: nil.() | cons.$1.Maybe_TPL_$1_L_$1 -> 
-    case xs 
-        of cons -> \y : $1.Maybe_TPL_$1_L_$1 ->
-            let m = pr 1 y within
-            let maybe_tpl = pr 2 y within
+tailReducer_L_$1 = \__xs: nil.() | cons.$1.Maybe_TPL_$1_L_$1 -> 
+    case __xs 
+        of cons -> \__y : $1.Maybe_TPL_$1_L_$1 ->
+            let m = pr 1 __y within
+            let maybe_tpl = pr 2 __y within
             case maybe_tpl
-                of nothig -> \n : () -> just.(m, nil.())
-                of just -> \tpl : $1.L_$1 ->  
-                    let prev_m = pr 1 tpl within
-                    let ls = pr 2 tpl within
+                of nothing -> \__n : () -> just.(m, nil.())
+                of just -> \__tpl : $1.L_$1 ->  
+                    let prev_m = pr 1 __tpl within
+                    let ls = pr 2 __tpl within
                     let ls_new = cons.(prev_m, ls) :: L_$1 within
                         just.(m, ls_new)
-        of _ -> nothig.();
+        of _ -> nothing.();
 
-rec union_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \xs: L_$1 -> \ys: L_$1 ->
-    case fold xs safeHead($1) 
-        of just -> \y: $1 -> (union($1) (fold xs (remElement($1) y))) (cons.(y, ys))
-        of nothig -> \y: () -> ys;
+rec union_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \__xs: L_$1 -> \__ys: L_$1 ->
+    case fold __xs safeHead($1) 
+        of just -> \__y: $1 -> (union($1) (fold __xs (remElement($1) __y))) (cons.(__y, __ys))
+        of nothing -> \__y: () -> __ys;
 
 
-rec app_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \xs: L_$1 -> \ys: L_$1 ->
-    case fold xs safeHead($1)
-        of just -> \y: $1 -> 
-            let maybe_tl = tail_L_$1 xs within
+rec app_L_$1 :: L_$1 -> (L_$1 -> L_$1) = \__xs: L_$1 -> \__ys: L_$1 ->
+    case fold __xs safeHead($1)
+        of just -> \__y: $1 -> 
+            let maybe_tl = tail_L_$1 __xs within
             case maybe_tl
-                of just -> \tl : L_$1 -> (app($1) tl) (cons.(y, ys))
-                of _ -> cons.(y, ys)
-        of nothig -> \y: () -> ys;
+                of just -> \tl : L_$1 -> (app($1) tl) (cons.(__y, __ys))
+                of _ -> cons.(__y, __ys)
+        of nothing -> \__y: () -> __ys;
+dnl
+diff_L_$1 = (\__xs : List($1) -> \__ys : List($1) ->dnl
+    ((listReduce($1, List($1)) __ys) __xs) (\__el : $1 -> \__accxs : List($1) -> fold __accxs (remElement($1) __el))) :: L_$1 -> (L_$1 -> L_$1);dnl
 
-empty_L_$1 = nil.() :: L_$1;
+elem_L_$1 = (\__el_x : $1 -> \__el_xs : List($1) -> ((listReduce($1, Bool) __el_xs) false) (\__el_y : $1 -> \__el_acc : Bool -> __el_acc or (__el_y == __el_x)));dnl 
 
+empty_L_$1 = (nil.()) :: L_$1;dnl
+dnl
 define(`__instance_List_$1', `')dnl
 ')dnl
+define(`listReduce', `__listReduce($1, $2, List($1))')
+define(`listReduce_', `__listReduce($1, $2, AnonList($1))')
+define(`__listReduce', `(\__lred_xs : $3 -> \__lred_acc : $2 -> \__f : ($1 -> ($2 -> $2)) ->dnl
+let __appF = \__lred_ys : nil.() | cons.$1.$2 -> dnl
+case __lred_ys dnl 
+ of cons -> \__lred_tpl : $1.$2 -> let __lred_val = pr 1 __lred_tpl within let __new_acc = pr 2 __lred_tpl within ((__f __lred_val) __new_acc)dnl
+ of _ -> __lred_acc within (fold __lred_xs __appF) :: $2)')dnl
+define(`__globctr_val', `0')dnl
+define(`globctr', `__globctr_val()define(`__globctr_val', incr(defn(`__globctr_val')))')dnl
+define(`ctr', `ifdef(`__ctr_val_$1', `__ctr_val_$1()define(`__ctr_val_$1', incr(defn(`__ctr_val_$1')))', `define(`__ctr_val_$1', `1')`0'')')dnl
+define(`AnonList', `(define(`loc', format(`L_anon_%d', ctr(`L_anon')))\loc -> nil.() | cons.$1.loc undefine(`loc'))')dnl
+dnl
+dnl # Tuple Functions
+dnl
+define(`instanciateTuple', `datatype Tuple($@) = __exp_Types_Dot($@)')dnl
+define(`__exp_Types', `ifelse($#, `0', `', $#, `1', `$1', `format(`%s_%s', $1, __exp_Types(shift($@)))')')dnl
+define(`__exp_Types_Dot', `ifelse($#, `0', `', $#, `1', `$1', `format(`%s.%s', $1, __exp_Types_Dot(shift($@)))')')dnl
+define(`Tuple', `format(TPL_%s, __exp_Types($@))')dnl
