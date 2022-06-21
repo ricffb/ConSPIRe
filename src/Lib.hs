@@ -32,7 +32,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Tuple.Extra (both)
-import Debug.Trace (trace, traceShow, traceShowId, traceShowM)
+import Debug.Trace (trace, traceShow, traceShowId, traceShowM, traceM)
 import Subsume (Subsume ((<|)))
 import Text.Show (Show)
 import TypeLib (mapVar, resolve, (</))
@@ -177,28 +177,28 @@ check p = case p of
     Env {alphabet, procEnv, typeEnv} <- ask
     argT <- typeEnv !!? arg
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argT <| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argT
+      Just (TFun fargT prT) -> if argT <| fargT then return prT else throwError $ TypeMismatch ("CallProc " ++ process ++ " had type from TypeEnv")  fargT argT
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
           prT <- addToEnv (process, TFun argT (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argT <| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argT
+            (TFun fargT' prT') -> if argT <| fargT' then return prT' else throwError $ TypeMismatch ("CallProc " ++ process)  fargT' argT
             pr' -> throwError $ NotFunction pr'
   --
   CallProc process args -> do
     Env {alphabet, procEnv, typeEnv} <- ask
     argTypes <- TProd <$> mapM (typeEnv !!?) args
     case typeEnv !? process of
-      Just (TFun fargT prT) -> if argTypes <| fargT then return prT else throwError $ TypeMismatch "CallProc" fargT argTypes
+      Just (TFun fargT prT) -> if argTypes <| fargT then return prT else throwError $ TypeMismatch ("CallProc " ++ process ++ " had type from TypeEnv") fargT argTypes
       Just pr -> throwError $ NotFunction pr
       Nothing -> case procEnv !? process of
         Nothing -> throwError $ NotInScope process
         Just pr -> do
           prT <- addToEnv (process, TFun argTypes (TProc alphabet)) $ check pr
           case prT of
-            (TFun fargT' prT') -> if argTypes <| fargT' then return prT' else throwError $ TypeMismatch "CallProc" fargT' argTypes
+            (TFun fargT' prT') -> if argTypes <| fargT' then return prT' else throwError $ TypeMismatch ("CallProc " ++ process)  fargT' argTypes
             pr' -> throwError $ NotFunction pr'
   --
   Prefix action pr -> do
@@ -323,7 +323,7 @@ checkTExp' chLit texp@(TExp exp mType) = case mType of
 
 -- Check Expression for type
 checkExp' :: Show l => (l -> Check Type) -> TExp'' l Type -> Check Type
-checkExp' _ exp | traceShow exp False = undefined
+-- checkExp' _ exp | traceShow exp False = undefined
 checkExp' chLit texp@(TExp exp assertTy) = case exp of
   ---
   Eq exp' exp2 ->
@@ -366,11 +366,15 @@ checkExp' chLit texp@(TExp exp assertTy) = case exp of
   ---
   Tuple exprs -> do
     typs <- mapM checkExp exprs
-    return $ TProd typs
+    case assertTy of
+      Nothing -> return $ TProd typs
+      Just aty -> checkAssertedTypeFor (TProd typs) aty $ "asserted type for Tuple"
   ---
   Sum chan expr -> do
     exprT <- checkExp expr
-    return $ TSum [(chan, exprT)]
+    case assertTy of
+      Nothing -> return $ TSum [(chan, exprT)]
+      Just aty -> checkAssertedTypeFor (TSum [(chan, exprT)]) aty $ "asserted type for Sum"
   ---
   Fold ind fun -> do
     inferredT <- checkExp ind
@@ -442,6 +446,9 @@ typeMerge msg x y
   | x <| y = return y
   | y <| x = return x
   | otherwise = throwError $ TypeMismatch msg x y
+
+checkAssertedTypeFor :: Type -> Type -> String -> Check Type
+checkAssertedTypeFor givenType assertedType message = if givenType <| assertedType then return assertedType else throwError $ TypeMismatch message assertedType givenType
 
 checkExp :: TExp -> Check Type
 checkExp = checkExp' checkLit
