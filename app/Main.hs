@@ -9,6 +9,7 @@ import Lib (Env (Env, procEnv, typeEnv), TypeError, checkTop)
 import PrepParsed (prepEnv)
 import System.Environment (getArgs)
 import TypeLib (resolve)
+import Control.Monad.Cont (MonadIO(liftIO))
 
 main :: IO ()
 main = do
@@ -26,25 +27,28 @@ checkFile s = do
        in runAssertions baseEnv asserts
 
 runAssertions :: Env -> [Construct] -> IO ()
-runAssertions baseEnv = mapM_ checkAssert
+runAssertions baseEnv constr = do 
+                            res <- mapM checkAssert constr
+                            mapM_ (\(n, x) -> putStrLn $ "Result of assertion " ++ show n ++ ": " ++ if x then "success" else "fail") $ zip [1..] res 
   where
-    checkAssert :: Construct -> IO ()
+    checkAssert :: Construct -> IO Bool
     checkAssert ass@(Assert gamma procName (PType typeName _)) =
       let env = baseEnv {typeEnv = typeEnv baseEnv `Map.union` gamma}
           mPr = procEnv env !? procName
           mAlph = typeEnv env !? typeName
        in do
-            putStrLn $ "Running Assertion: " ++ prettyAssert ass
+            putStrLn $ "\n\nRunning Assertion: " ++ prettyAssert ass
             case mPr of
               Just pr -> case mAlph of
                 Just alph -> checkResult (TProc $ resolve (typeEnv env) alph) $ checkTop env pr alph
-                Nothing -> putStrLn $ "Alphabet type \"" ++ typeName ++ "\" was not in Scope"
-              Nothing -> putStrLn $ "Process with name \"" ++ typeName ++ "\" was not in Scope"
+                Nothing -> putStrLn ("Alphabet type \"" ++ typeName ++ "\" was not in Scope") >> return False
+              Nothing -> putStrLn ("Process with name \"" ++ typeName ++ "\" was not in Scope") >> return False
     checkAssert _ = undefined
 
-checkResult :: Type -> Either TypeError Type -> IO ()
-checkResult _ (Left err) = print err
-checkResult expect (Right ty) = if expect == ty then putStrLn $ "Type check successful: " ++ show ty else putStrLn $ "Type check failed: asserted " ++ show expect ++ " but got " ++ show ty
+checkResult :: Type -> Either TypeError Type -> IO Bool
+checkResult _ (Left err) = print err >> return False
+checkResult expect (Right ty) = if expect == ty then putStrLn ("Type check successful: " ++ show ty) >> return True 
+                                else putStrLn ("Type check failed: asserted " ++ show expect ++ " but got " ++ show ty) >> return False
 
 prettyAssert :: Construct -> String
 prettyAssert (Assert gamma procName (PType typeName _)) = "assert " ++ prettyGamma gamma ++ " |- " ++ procName ++ ": Proc(" ++ typeName ++ ")"
